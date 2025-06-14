@@ -186,7 +186,7 @@ LEFT JOIN
 SELECT
     a.SMD,
     COALESCE(SUM(c.COUNT), 0) AS Injuries,
-    '/Crash-Injury-Dashboard/smd/' || a.SMD AS link
+    '/Crash-Injury-Dashboard-Frontend/smd/' || a.SMD AS link
 FROM smd.smd_2023 a
 LEFT JOIN crashes.crashes c 
     ON a.SMD = c.SMD
