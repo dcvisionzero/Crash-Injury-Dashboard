@@ -1,3 +1,6 @@
+deployment:
+  basePath: /Crash-Injury-Dashboard-Frontend
+
 appearance:
   default: light
   switcher: true
