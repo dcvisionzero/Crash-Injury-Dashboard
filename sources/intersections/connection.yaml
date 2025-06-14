@@ -1,0 +1,5 @@
+# This file was automatically generated
+name: intersections
+type: duckdb
+options:
+  filename: ":memory:"

@@ -1,0 +1,5 @@
+# This file was automatically generated
+name: hin
+type: duckdb
+options:
+  filename: ":memory:"

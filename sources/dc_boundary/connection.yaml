@@ -1,0 +1,5 @@
+# This file was automatically generated
+name: dc_boundary
+type: duckdb
+options:
+  filename: ":memory:"

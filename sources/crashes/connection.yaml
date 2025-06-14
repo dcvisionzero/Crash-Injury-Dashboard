@@ -1,0 +1,5 @@
+# This file was automatically generated
+name: crashes
+type: duckdb
+options:
+  filename: ":memory:"
