@@ -2,7 +2,7 @@
   "name": "my-evidence-project",
   "version": "0.0.1",
   "scripts": {
-    "build": "NODE_OPTIONS=--max-old-space-size=8192 EVIDENCE_BUILD_DIR=./build/Crash-Injury-Dashboard-Frontend evidence build",
+    "build": "NODE_OPTIONS=--max-old-space-size=8192 EVIDENCE_BUILD_DIR=./build/Crash-Injury-Dashboard evidence build",
     "build:strict": "NODE_OPTIONS=--max-old-space-size=8192 evidence build:strict",
     "dev": "evidence dev --open /",
     "test": "evidence build",

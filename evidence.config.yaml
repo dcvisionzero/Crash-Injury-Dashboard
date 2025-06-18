@@ -1,5 +1,5 @@
 deployment:
-  basePath: /Crash-Injury-Dashboard-Frontend
+  basePath: /Crash-Injury-Dashboard
 
 appearance:
   default: light
