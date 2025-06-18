@@ -642,7 +642,7 @@ The selection for <b>Severity</b> is: <b><Value data={severity_selection} column
       <tr>
         <td><img src="https://raw.githubusercontent.com/rafaelmorenoco/Crash-Injury-Dashboard-Backend/main/Icons/pedestrian.png" alt="Pedestrian Icon" width="32"></td>
         <td>Pedestrian</td>
-        <td>An individual moving on foot.</td>
+        <td>An individual moving on foot, or using a wheelchair or other personal mobility device.</td>
       </tr>
       <tr>
         <td><img src="https://raw.githubusercontent.com/rafaelmorenoco/Crash-Injury-Dashboard-Backend/main/Icons/bicyclist.png" alt="Bicyclist Icon" width="32"></td>
@@ -660,7 +660,7 @@ The selection for <b>Severity</b> is: <b><Value data={severity_selection} column
         <td>User of a standing scooter or personal mobility device. *Fatal only.</td>
       </tr>
       <tr>
-        <td><img src="https://raw.githubusercontent.com/rafaelmorenoco/Crash-Injury-Dashboard-Backend/main/Icons/unknown.pngg" alt="Other Icon" width="32"></td>
+        <td><img src="https://raw.githubusercontent.com/rafaelmorenoco/Crash-Injury-Dashboard-Backend/main/Icons/unknown.png" alt="Other Icon" width="32"></td>
         <td>Other</td>
         <td>Includes motor-driven cycles (commonly referred to as mopeds and motorcycles), as well as personal mobility devices such as standing scooters, bus occupants, truck occupants, and others, including unknown classifications.</td>
       </tr>

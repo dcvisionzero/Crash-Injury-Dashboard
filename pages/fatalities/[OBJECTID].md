@@ -3,7 +3,7 @@ queries:
    - fatality: fatality.sql
 ---
 
-# <Value data={Tittle} column=ADDRESS/> - <Value data={Tittle} column=Date/>
+# <Value data={Tittle} column=ADDRESS/> - <Value data={Tittle} column=Date/> hrs.
 
 ```sql fatality_with_link
 select *, '/fatalities/' || OBJECTID as link
@@ -162,8 +162,5 @@ UNION ALL
         <Column id=column_name title="Fatality Details" wrap=true/>
         <Column id=column_value title=" " wrap=true/>
       </DataTable>
-      <Note>
-        *Fatal only.
-      </Note>
     </Group>
 </Grid>

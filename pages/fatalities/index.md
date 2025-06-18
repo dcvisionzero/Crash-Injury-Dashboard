@@ -116,6 +116,7 @@ SELECT
     SEVERITY,
     ADDRESS,
     CCN,
+    replace(MODE, '*', '') || ' - ' || CCN AS mode_ccn,
     CASE
         WHEN CAST(AGE AS INTEGER) = 120 THEN '-'
         ELSE CAST(CAST(AGE AS INTEGER) AS VARCHAR)
@@ -171,7 +172,7 @@ As of <Value data={last_record} column="latest_record"/> there <Value data={yoy_
     data={unique_mode} 
     name=multi_mode_dd
     value=MODE
-    title="Select Mode"
+    title="Select Road User"
     multiple=true
     selectAllByDefault=true
 />
@@ -233,7 +234,7 @@ The selection for <b>Road User</b> is: <b><Value data={mode_selection} column="M
         </Note>
         <DataTable data={inc_map} link=link wrapTitles=true rowShading=true search=true rows=8>
             <Column id=REPORTDATE title="Date" fmt='mm/dd/yy hh:mm' wrap=true/>
-            <Column id=MODE title="Road User" wrap=true/>
+            <Column id=mode_ccn title="Road User - CCN" wrap=true/>
             <Column id=Age/>
             <Column id=ADDRESS wrap=true/>
         </DataTable>
