@@ -38,6 +38,16 @@ from hin.hin
 group by all
 ```
 
+```sql indicators
+SELECT 
+    sum(LPI) AS LPI,
+    sum(RRFB) AS RRFB,
+    sum(SLS) AS SLS,
+    sum(CE) AS CE,
+    'https://visionzero.dc.gov/pages/engineering' AS link
+FROM wards.wards_2022;
+```
+
 ```sql barchart_mode
 WITH 
     combinations AS (
@@ -575,7 +585,7 @@ The selection for <b>Severity</b> is: <b><Value data={severity_selection} column
     <Group>
         <BarChart 
             title="Injuries by Road User ({`${period_comp_mode[0].current_period_range}`})"
-            chartAreaHeight=300
+            chartAreaHeight=330
             data={barchart_mode}
             x=MODE
             y=sum_count
@@ -591,6 +601,12 @@ The selection for <b>Severity</b> is: <b><Value data={severity_selection} column
         <Note>
             *Fatal only.
         </Note>
+    <DataTable data={indicators} wrapTitles=true rowShading=true title="Roadway Safety Interventions" subtitle="Select any roadway intervention to learn more" link=link>
+            <Column id=LPI title="Leading Pedestrian Intervals (LPI)"/>
+            <Column id=RRFB title="Rectangular Rapid Flashing Beacon (RRFB)"/>
+            <Column id=SLS title="20 MPH Speed Limit Signs"/>
+            <Column id=CE title="Curb Extensions"/>
+        </DataTable>
     </Group>
         <Group>
         <DataTable data={period_comp_mode} totalRow=true sort="current_period_sum desc" wrapTitles=true rowShading=true title="Year Over Year Injuries Comparison by Road User">

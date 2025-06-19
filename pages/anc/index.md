@@ -47,7 +47,7 @@ group by 1
 SELECT
     a.ANC,
     COALESCE(SUM(c.COUNT), 0) AS Injuries,
-    '/Crash-Injury-Dashboard-Frontend/anc/' || a.ANC AS link
+    '/Crash-Injury-Dashboard/anc/' || a.ANC AS link
 FROM anc.anc_2023 a
 LEFT JOIN crashes.crashes c 
     ON a.ANC = c.ANC
