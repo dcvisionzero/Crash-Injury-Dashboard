@@ -83,7 +83,10 @@ SELECT
     SUBSTRING(fc.MODE, 1, 3) || '-' || SUBSTRING(fc.SEVERITY, 1) AS MODESEV,
     fc.ADDRESS,
     fc.GRID_ID,
-    fc.AGE,
+    CASE
+        WHEN CAST(fc.AGE AS INTEGER) = 120 THEN '-'
+        ELSE CAST(CAST(fc.AGE AS INTEGER) AS VARCHAR)
+    END AS AGE,
     COALESCE(fc.COUNT, 0) AS COUNT
 FROM dates d
 LEFT JOIN filtered_crashes fc
