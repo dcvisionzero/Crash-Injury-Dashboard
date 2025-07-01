@@ -241,6 +241,150 @@ LEFT JOIN
     total_counts;
 ```
 
+```sql barchart_mode
+WITH 
+    report_date_range AS (
+        SELECT
+            CASE 
+                WHEN '${inputs.date_range.end}'::DATE >= (SELECT CAST(MAX(REPORTDATE) AS DATE) FROM crashes.crashes)::DATE THEN 
+                    (SELECT MAX(REPORTDATE) FROM crashes.crashes)::DATE + INTERVAL '1 day'
+                ELSE 
+                    '${inputs.date_range.end}'::DATE + INTERVAL '1 day'
+            END AS end_date,
+            '${inputs.date_range.start}'::DATE AS start_date
+    ),
+    date_info AS (
+        SELECT
+            start_date,
+            end_date,
+            CASE 
+                WHEN start_date = DATE_TRUNC('year', end_date)
+                    AND '${inputs.date_range.end}'::DATE = (end_date::DATE - INTERVAL '1 day')
+                    THEN EXTRACT(YEAR FROM end_date)::VARCHAR || ' YTD' 
+                WHEN '${inputs.date_range.end}'::DATE > (end_date::DATE  - INTERVAL '1 day')
+                    THEN strftime(start_date, '%m/%d/%y') || '-' || strftime((end_date::DATE  - INTERVAL '1 day'), '%m/%d/%y')
+                ELSE 
+                    strftime(start_date, '%m/%d/%y') || '-' || strftime(end_date - INTERVAL '1 day', '%m/%d/%y')
+            END AS date_range_label,
+            (end_date - start_date) AS date_range_days
+        FROM report_date_range
+    ),
+    offset_period AS (
+        SELECT
+            start_date,
+            end_date,
+            CASE 
+                WHEN end_date > start_date + INTERVAL '5 year' THEN (SELECT 1/0) -- Force error if more than 5 years
+                WHEN end_date > start_date + INTERVAL '4 year' THEN INTERVAL '5 year'
+                WHEN end_date > start_date + INTERVAL '3 year' THEN INTERVAL '4 year'
+                WHEN end_date > start_date + INTERVAL '2 year' THEN INTERVAL '3 year'
+                WHEN end_date > start_date + INTERVAL '1 year' THEN INTERVAL '2 year'
+                ELSE INTERVAL '1 year'
+            END AS interval_offset
+        FROM date_info
+    ),
+    modes_and_severities AS (
+        SELECT DISTINCT 
+            MODE
+        FROM 
+            crashes.crashes
+    ), 
+    current_period AS (
+        SELECT 
+            MODE,
+            SUM(COUNT) AS sum_count
+        FROM 
+            crashes.crashes 
+        WHERE 
+            SEVERITY IN ${inputs.multi_severity.value} 
+            AND REPORTDATE >= (SELECT start_date FROM date_info)
+            AND REPORTDATE <= (SELECT end_date FROM date_info)
+            AND AGE BETWEEN ${inputs.min_age.value}
+                                AND (
+                                    CASE 
+                                        WHEN ${inputs.min_age.value} <> 0 
+                                        AND ${inputs.max_age.value} = 120
+                                        THEN 119
+                                        ELSE ${inputs.max_age.value}
+                                    END
+                                    )
+        GROUP BY 
+            MODE
+    ), 
+    prior_period AS (
+        SELECT 
+            MODE,
+            SUM(COUNT) AS sum_count
+        FROM 
+            crashes.crashes 
+        WHERE 
+            SEVERITY IN ${inputs.multi_severity.value} 
+            AND REPORTDATE >= ((SELECT start_date FROM date_info) - (SELECT interval_offset FROM offset_period))
+            AND REPORTDATE <= ((SELECT end_date FROM date_info) - (SELECT interval_offset FROM offset_period))
+            AND AGE BETWEEN ${inputs.min_age.value}
+                                AND (
+                                    CASE 
+                                        WHEN ${inputs.min_age.value} <> 0 
+                                        AND ${inputs.max_age.value} = 120
+                                        THEN 119
+                                        ELSE ${inputs.max_age.value}
+                                    END
+                                    )
+        GROUP BY 
+            MODE
+    ), 
+    total_counts AS (
+        SELECT 
+            SUM(cp.sum_count) AS total_current_period,
+            SUM(pp.sum_count) AS total_prior_period
+        FROM 
+            current_period cp
+        FULL JOIN 
+            prior_period pp 
+        ON cp.MODE = pp.MODE
+    ),
+    prior_date_info AS (
+        SELECT
+            (SELECT start_date FROM date_info) - (SELECT interval_offset FROM offset_period) AS prior_start_date,
+            (SELECT end_date   FROM date_info) - (SELECT interval_offset FROM offset_period) AS prior_end_date
+    ),
+    prior_date_label AS (
+    SELECT
+      CASE 
+        WHEN (SELECT start_date FROM date_info) = DATE_TRUNC('year', (SELECT end_date FROM date_info))
+             AND '${inputs.date_range.end}'::DATE 
+                 = (SELECT CAST(MAX(REPORTDATE) AS DATE) FROM crashes.crashes)::DATE
+          THEN EXTRACT(YEAR FROM prior_end_date)::VARCHAR || ' YTD'
+        ELSE strftime(prior_start_date, '%m/%d/%y')
+             || '-' ||
+             strftime(prior_end_date - INTERVAL '1 day', '%m/%d/%y')
+      END AS prior_date_range_label
+    FROM prior_date_info
+  )
+
+    SELECT
+    mas.MODE,
+    'Current Period'    AS period,
+    COALESCE(cp.sum_count, 0)         AS period_sum,
+    di.date_range_label               AS period_range
+    FROM modes_and_severities mas
+    LEFT JOIN current_period   cp ON mas.MODE = cp.MODE
+    CROSS JOIN date_info       di
+
+    UNION ALL
+
+    SELECT
+    mas.MODE,
+    'Prior Period'      AS period,
+    COALESCE(pp.sum_count, 0)         AS period_sum,
+    pdl.prior_date_range_label        AS period_range
+    FROM modes_and_severities mas
+    LEFT JOIN prior_period     pp ON mas.MODE = pp.MODE
+    CROSS JOIN prior_date_label pdl
+
+    ORDER BY mas.MODE, period;
+```
+
 ```sql period_comp_severity
 WITH 
     report_date_range AS (
@@ -391,6 +535,153 @@ LEFT JOIN
     total_counts;
 ```
 
+```sql barchart_severity
+WITH 
+    report_date_range AS (
+        SELECT
+            CASE 
+                WHEN '${inputs.date_range.end}'::DATE >= (SELECT CAST(MAX(REPORTDATE) AS DATE) FROM crashes.crashes)::DATE THEN 
+                    (SELECT MAX(REPORTDATE) FROM crashes.crashes)::DATE + INTERVAL '1 day'
+                ELSE 
+                    '${inputs.date_range.end}'::DATE + INTERVAL '1 day'
+            END AS end_date,
+            '${inputs.date_range.start}'::DATE AS start_date
+    ),
+    date_info AS (
+        SELECT
+            start_date,
+            end_date,
+            CASE 
+                WHEN start_date = DATE_TRUNC('year', end_date)
+                    AND '${inputs.date_range.end}'::DATE = (end_date::DATE - INTERVAL '1 day')
+                    THEN EXTRACT(YEAR FROM end_date)::VARCHAR || ' YTD' 
+                WHEN '${inputs.date_range.end}'::DATE > (end_date::DATE  - INTERVAL '1 day')
+                    THEN strftime(start_date, '%m/%d/%y') || '-' || strftime((end_date::DATE  - INTERVAL '1 day'), '%m/%d/%y')
+                ELSE 
+                    strftime(start_date, '%m/%d/%y') || '-' || strftime(end_date - INTERVAL '1 day', '%m/%d/%y')
+            END AS date_range_label,
+            (end_date - start_date) AS date_range_days
+        FROM report_date_range
+    ),
+    offset_period AS (
+        SELECT
+            start_date,
+            end_date,
+            CASE 
+                WHEN end_date > start_date + INTERVAL '5 year' THEN (SELECT 1/0) -- Force error if more than 5 years
+                WHEN end_date > start_date + INTERVAL '4 year' THEN INTERVAL '5 year'
+                WHEN end_date > start_date + INTERVAL '3 year' THEN INTERVAL '4 year'
+                WHEN end_date > start_date + INTERVAL '2 year' THEN INTERVAL '3 year'
+                WHEN end_date > start_date + INTERVAL '1 year' THEN INTERVAL '2 year'
+                ELSE INTERVAL '1 year'
+            END AS interval_offset
+        FROM date_info
+    ),
+    severities AS (
+        SELECT DISTINCT 
+            SEVERITY
+        FROM 
+            crashes.crashes
+        WHERE
+            SEVERITY IN ${inputs.multi_severity.value}     
+    ), 
+    current_period AS (
+        SELECT 
+            SEVERITY,
+            SUM(COUNT) AS sum_count
+        FROM 
+            crashes.crashes 
+        WHERE 
+            SEVERITY IN ${inputs.multi_severity.value} 
+            AND REPORTDATE >= (SELECT start_date FROM date_info)
+            AND REPORTDATE <= (SELECT end_date FROM date_info)
+            AND AGE BETWEEN ${inputs.min_age.value}
+                                AND (
+                                    CASE 
+                                        WHEN ${inputs.min_age.value} <> 0 
+                                        AND ${inputs.max_age.value} = 120
+                                        THEN 119
+                                        ELSE ${inputs.max_age.value}
+                                    END
+                                    )
+        GROUP BY 
+            SEVERITY
+    ), 
+    prior_period AS (
+        SELECT 
+            SEVERITY,
+            SUM(COUNT) AS sum_count
+        FROM 
+            crashes.crashes 
+        WHERE 
+            SEVERITY IN ${inputs.multi_severity.value} 
+            AND REPORTDATE >= (
+                (SELECT start_date FROM offset_period) - (SELECT interval_offset FROM offset_period)
+            )
+            AND REPORTDATE <= (
+                (SELECT end_date FROM offset_period) - (SELECT interval_offset FROM offset_period)
+            )
+            AND AGE BETWEEN ${inputs.min_age.value}
+                                AND (
+                                    CASE 
+                                        WHEN ${inputs.min_age.value} <> 0 
+                                        AND ${inputs.max_age.value} = 120
+                                        THEN 119
+                                        ELSE ${inputs.max_age.value}
+                                    END
+                                    )
+        GROUP BY 
+            SEVERITY
+    ), 
+    total_counts AS (
+        SELECT 
+            SUM(cp.sum_count) AS total_current_period,
+            SUM(pp.sum_count) AS total_prior_period
+        FROM 
+            current_period cp
+        FULL JOIN 
+            prior_period pp 
+        ON cp.SEVERITY = pp.SEVERITY
+    ),
+    prior_date_info AS (
+        SELECT
+            (SELECT start_date FROM date_info) - (SELECT interval_offset FROM offset_period) AS prior_start_date,
+            (SELECT end_date   FROM date_info) - (SELECT interval_offset FROM offset_period) AS prior_end_date
+    ),
+  prior_date_label AS (
+    SELECT
+      CASE 
+        WHEN (SELECT start_date FROM date_info) = DATE_TRUNC('year', (SELECT end_date FROM date_info))
+             AND '${inputs.date_range.end}'::DATE = (SELECT CAST(MAX(REPORTDATE) AS DATE) FROM crashes.crashes)::DATE
+        THEN EXTRACT(YEAR FROM prior_end_date)::VARCHAR || ' YTD'
+        ELSE strftime(prior_start_date, '%m/%d/%y') || '-' || strftime(prior_end_date - INTERVAL '1 day', '%m/%d/%y')
+      END AS prior_date_range_label
+    FROM prior_date_info
+  )
+
+SELECT
+  s.SEVERITY,
+  'Current Period' AS period,
+  COALESCE(cp.sum_count, 0) AS period_sum,
+  di.date_range_label       AS period_range
+FROM severities s
+LEFT JOIN current_period cp ON s.SEVERITY = cp.SEVERITY
+CROSS JOIN date_info di
+
+UNION ALL
+
+SELECT
+  s.SEVERITY,
+  'Prior Period' AS period,
+  COALESCE(pp.sum_count, 0) AS period_sum,
+  pdl.prior_date_range_label AS period_range
+FROM severities s
+LEFT JOIN prior_period pp ON s.SEVERITY = pp.SEVERITY
+CROSS JOIN prior_date_label pdl
+
+ORDER BY s.SEVERITY, period;
+```
+
 ```sql yoy_text_fatal
 WITH date_range AS (
     SELECT
@@ -518,12 +809,39 @@ FROM
 ```
 
 ```sql severity_selection
-SELECT
-    STRING_AGG(DISTINCT SEVERITY, ', ' ORDER BY SEVERITY ASC) AS SEVERITY_SELECTION
-FROM
+WITH ordered_severities AS (
+  SELECT DISTINCT
+    SEVERITY
+  FROM
     crashes.crashes
-WHERE
-    SEVERITY IN ${inputs.multi_severity.value}; 
+  WHERE
+    SEVERITY IN ${inputs.multi_severity.value}
+),
+agg_severities AS (
+  SELECT
+    STRING_AGG(
+      SEVERITY,
+      ', '
+      ORDER BY
+        CASE SEVERITY
+          WHEN 'Minor' THEN 1
+          WHEN 'Major' THEN 2
+          WHEN 'Fatal' THEN 3
+        END
+    ) AS severity_list,
+    COUNT(SEVERITY) AS severity_count
+  FROM
+    ordered_severities
+)
+SELECT
+  CASE
+    WHEN severity_count = 0 THEN ' '
+    WHEN severity_count = 1 THEN severity_list
+    WHEN severity_count = 2 THEN REPLACE(severity_list, ', ', ' and ')
+    ELSE REGEXP_REPLACE(severity_list, ',([^,]+)$', ', and \\1')
+  END AS SEVERITY_SELECTION
+FROM
+  agg_severities;
 ```
 
 <!--
@@ -543,7 +861,6 @@ echartsOptions={{animation: false}}
         })()
   }
   disableAutoDefault={true}
-  title="Select Time Period"
   name="date_range"
   presetRanges={['Last 7 Days', 'Last 30 Days', 'Last 90 Days', 'Last 6 Months', 'Last 12 Months', 'Month to Today', 'Last Month', 'Year to Today', 'Last Year']}
   defaultValue="Year to Today"
@@ -554,7 +871,7 @@ echartsOptions={{animation: false}}
     data={unique_severity} 
     name=multi_severity
     value=SEVERITY
-    title="Select Severity"
+    title="Severity"
     multiple=true
     defaultValue={['Fatal', 'Major']}
 />
@@ -563,7 +880,7 @@ echartsOptions={{animation: false}}
     data={age_range} 
     name=min_age
     value=age_int
-    title="Select Min Age" 
+    title="Min Age" 
     defaultValue={0}
 />
 
@@ -571,61 +888,74 @@ echartsOptions={{animation: false}}
     data={age_range} 
     name="max_age"
     value=age_int
-    title="Select Max Age"
+    title="Max Age"
     order="age_int desc"
     defaultValue={120}
     description='Age 120 serves as a placeholder for missing age values in the records. However, missing values will be automatically excluded from the query if the default 0-120 range is changed by the user. To get a count of missing age values, go to the "Age Distribution" page.'
 />
 
-<Alert status="info">
-The selection for <b>Severity</b> is: <b><Value data={severity_selection} column="SEVERITY_SELECTION"/></b>
-</Alert>
-
 <Grid cols=2>
     <Group>
+        <DataTable data={period_comp_mode} totalRow sort="current_period_sum desc" wrapTitles rowShading title="Year Over Year Comparison of {`${severity_selection[0].SEVERITY_SELECTION}`} Injuries by Road User">
+            <Column id="MODE" title="Road User" description="*Fatal Only" wrap=true totalAgg="Total"/>
+            <Column id=ICON title=' ' contentType=image height=22px align=center totalAgg=" "/>
+            <Column id="current_period_sum" title="{period_comp_mode[0].current_period_range}"/>
+            <Column id="prior_period_sum" title="{period_comp_mode[0].prior_period_range}"/>
+            <Column id="difference" contentType="delta" downIsGood title="Diff"/>
+            <Column id="percentage_change" fmt="pct0" title="% Diff" totalAgg={period_comp_mode[0].total_percentage_change} totalFmt="pct0"/>
+        </DataTable>
+        <div style="font-size: 14px;">
+            <b>Percentage Breakdown of {`${severity_selection[0].SEVERITY_SELECTION}`} Injuries by Road User</b>
+        </div>
         <BarChart 
-            title="Injuries by Road User ({`${period_comp_mode[0].current_period_range}`})"
-            chartAreaHeight=330
             data={barchart_mode}
-            x=MODE
-            y=sum_count
-            yAxisTitle="Injuries"
-            series=SEVERITY
-            seriesColors={{"Major": '#ff9412',"Minor": '#ffdf00',"Fatal": '#ff5a53'}}
+            chartAreaHeight=80
+            x=period_range
+            y=period_sum
+            xLabelWrap={true}
             swapXY=true
-            labels=true
-            leftPadding=10
-            rightPadding=30
-            wrapTitles=true
+            yFmt=pct0
+            series=MODE
+            seriesColors={{"Pedestrian": '#00FFD4',"Other": '#06DFC8',"Bicyclist": '#0BBFBC',"Scooterist*": '#119FB0',"Motorcyclist*": '#167FA3',"Passenger": '#1C5F97',"Driver": '#271F7F',"Unknown": '#213F8B'}}
+            labels={true}
+            type=stacked100
+            downloadableData=false
+            downloadableImage=false
+            leftPadding={10} 
         />
-        <Note>
-            *Fatal only.
-        </Note>
-    <DataTable data={indicators} wrapTitles=true rowShading=true title="Roadway Safety Interventions" subtitle="Select any roadway intervention to learn more" link=link>
+    </Group>
+    <Group>
+        <DataTable data={period_comp_severity} totalRow=true sort="current_period_sum desc" wrapTitles=true rowShading=true title="Year Over Year Comparison of Injuries by Severity for All Road Users">
+            <Column id=SEVERITY title=Severity wrap=true totalAgg="Total"/>
+            <Column id=current_period_sum title="{period_comp_severity[0].current_period_range}" />
+            <Column id=prior_period_sum title="{period_comp_severity[0].prior_period_range}" />
+            <Column id=difference contentType=delta downIsGood=True title="Diff"/>
+            <Column id=percentage_change fmt='pct0' title="% Diff" totalAgg={period_comp_severity[0].total_percentage_change} totalFmt='pct0' /> 
+        </DataTable>
+        <div style="font-size: 14px;">
+            <b>Percentage Breakdown of Injuries by Severity for All Road Users</b>
+        </div>
+        <BarChart 
+            data={barchart_severity}
+            chartAreaHeight=80
+            x=period_range
+            y=period_sum
+            xLabelWrap={true}
+            swapXY=true
+            yFmt=pct0
+            series=SEVERITY
+            seriesColors={{"Minor": '#ffdf00',"Major": '#ff9412',"Fatal": '#ff5a53'}}
+            labels={true}
+            type=stacked100
+            downloadableData=false
+            downloadableImage=false
+            leftPadding={10}
+        /> 
+        <DataTable data={indicators} wrapTitles=true rowShading=true title="Roadway Safety Interventions" subtitle="Select any roadway intervention to learn more" link=link>
             <Column id=LPI title="Leading Pedestrian Intervals (LPI)"/>
             <Column id=RRFB title="Rectangular Rapid Flashing Beacon (RRFB)"/>
             <Column id=SLS title="20 MPH Speed Limit Signs"/>
             <Column id=CE title="Curb Extensions"/>
-        </DataTable>
-    </Group>
-        <Group>
-        <DataTable data={period_comp_mode} totalRow=true sort="current_period_sum desc" wrapTitles=true rowShading=true title="Year Over Year Injuries Comparison by Road User">
-            <Column id=ICON title='Road User' contentType=image height=25px align=center totalAgg="Total"/>
-            <Column id=current_period_sum title="Cnt" colGroup={`${period_comp_mode[0].current_period_range}`} />
-            <Column id=current_mode_percentage fmt=pct0 contentType=colorscale title="%" colGroup={`${period_comp_mode[0].current_period_range}`}/>
-            <Column id=prior_period_sum title="Cnt" colGroup={`${period_comp_mode[0].prior_period_range}`}/>
-            <Column id=prior_mode_percentage fmt=pct0 contentType=colorscale title="%" colGroup={`${period_comp_mode[0].prior_period_range}`}/>
-            <Column id=difference contentType=delta downIsGood=True title="Diff"/>
-            <Column id=percentage_change fmt='pct0' title="% Diff" totalAgg={period_comp_mode[0].total_percentage_change} totalFmt='pct0'/> 
-        </DataTable>
-        <DataTable data={period_comp_severity} totalRow=true sort="current_period_sum desc" wrapTitles=true rowShading=true title="Year Over Year Injuries Comparison by Severity Level">
-            <Column id=SEVERITY title=Level wrap=true totalAgg="Total"/>
-            <Column id=current_period_sum title="Cnt" colGroup={`${period_comp_severity[0].current_period_range}`} />
-            <Column id=current_severity_percentage fmt=pct0 contentType=colorscale title="%" colGroup={`${period_comp_severity[0].current_period_range}`}/>
-            <Column id=prior_period_sum title="Cnt" colGroup={`${period_comp_severity[0].prior_period_range}`}  />
-            <Column id=prior_severity_percentage fmt=pct0 contentType=colorscale title="%" colGroup={`${period_comp_severity[0].prior_period_range}`}/>
-            <Column id=difference contentType=delta downIsGood=True title="Diff"/>
-            <Column id=percentage_change fmt='pct0' title="% Diff" totalAgg={period_comp_severity[0].total_percentage_change} totalFmt='pct0' /> 
         </DataTable>
     </Group>
 </Grid>
