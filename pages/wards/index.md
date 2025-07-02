@@ -238,7 +238,7 @@ WITH
         END,
         ', '
         ORDER BY
-          MODE ASC -- The order is still based on the original mode name
+          MODE ASC
       ) AS mode_list,
       COUNT(DISTINCT MODE) AS mode_count
     FROM
@@ -268,7 +268,6 @@ WITH
   )
 -- 4. Combine results and apply final formatting logic to each column
 SELECT
-  -- Mode logic now operates on the pre-pluralized list
   CASE
     WHEN mode_count = 0 THEN ' '
     WHEN mode_count = total_mode_count THEN 'All Road Users'
@@ -276,7 +275,6 @@ SELECT
     WHEN mode_count = 2 THEN REPLACE(mode_list, ', ', ' and ')
     ELSE REGEXP_REPLACE(mode_list, ',([^,]+)$', ', and \\1')
   END AS MODE_SELECTION,
-  -- Severity logic remains unchanged
   CASE
     WHEN severity_count = 0 THEN ' '
     WHEN severity_count = 1 THEN severity_list
@@ -301,7 +299,6 @@ FROM
           }).format(twoDaysAgo);
         })()
   }
-  title="Select Time Period"
   name="date_range"
   presetRanges={['Last 7 Days', 'Last 30 Days', 'Last 90 Days', 'Last 6 Months', 'Last 12 Months', 'Month to Today', 'Last Month', 'Year to Today', 'Last Year']}
   defaultValue="Year to Today"
@@ -312,7 +309,7 @@ FROM
     data={unique_severity} 
     name=multi_severity
     value=SEVERITY
-    title="Select Severity"
+    title="Severity"
     multiple=true
     defaultValue={['Fatal', 'Major']}
 />
@@ -321,7 +318,7 @@ FROM
     data={unique_mode} 
     name=multi_mode_dd
     value=MODE
-    title="Select Road User"
+    title="Road User"
     multiple=true
     selectAllByDefault=true
     description="*Only fatal"
@@ -331,7 +328,7 @@ FROM
     data={age_range} 
     name=min_age
     value=age_int
-    title="Select Min Age" 
+    title="Min Age" 
     defaultValue={0}
 />
 
@@ -339,7 +336,7 @@ FROM
     data={age_range} 
     name="max_age"
     value=age_int
-    title="Select Max Age"
+    title="Max Age"
     order="age_int desc"
     defaultValue={120}
     description='Age 120 serves as a placeholder for missing age values in the records. However, missing values will be automatically excluded from the query if the default 0-120 range is changed by the user. To get a count of missing age values, go to the "Age Distribution" page.'
@@ -369,7 +366,7 @@ FROM
         </Note>
     </Group>
     <Group>
-        <DataTable data={period_comp_ward} sort="current_period_sum desc" title="Selected Period Comparison" totalRow=true wrapTitles=true rowShading=true>
+        <DataTable data={period_comp_ward} sort="current_period_sum desc" title="Year Over Year Comparison of {`${mode_severity_selection[0].SEVERITY_SELECTION}`} Injuries for {`${mode_severity_selection[0].MODE_SELECTION}`} by Ward" totalRow=true wrapTitles=true rowShading=true>
             <Column id=WARD title="Ward" totalAgg="Total"/>
             <Column id=current_period_sum title={`${period_comp_ward[0].current_period_range}`} />
             <Column id=prior_period_sum title={`${period_comp_ward[0].prior_period_range}`}  />

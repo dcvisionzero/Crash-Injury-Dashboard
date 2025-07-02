@@ -211,7 +211,7 @@ ORDER BY r.day_number;
 ```sql hex_map
 SELECT
     h.GRID_ID,
-    COALESCE(SUM(c.COUNT), 0) AS Injuries,
+    COALESCE(SUM(c.COUNT), 0) AS count,
     '/Crash-Injury-Dashboard/hexgrid/' || h.GRID_ID AS link
 FROM hexgrid.crash_hexgrid h
 LEFT JOIN crashes.crashes c 
@@ -235,13 +235,13 @@ GROUP BY h.GRID_ID;
 ```sql hex_with_link
 SELECT 
     h.*,
-    COALESCE(i.Injuries, 0) AS Injuries,
+    COALESCE(i.count, 0) AS count,
     '/Crash-Injury-Dashboard/hexgrid/' || h.GRID_ID AS link
 FROM ${hex} AS h
 LEFT JOIN (
     SELECT 
         c.GRID_ID,
-        SUM(c.COUNT) AS Injuries
+        SUM(c.COUNT) AS count
     FROM crashes.crashes c
     WHERE 
         c.MODE IN ${inputs.multi_mode_dd.value}
@@ -288,14 +288,73 @@ LIMIT 5;
 ```
 
 ```sql mode_severity_selection
+WITH
+  -- 1. Get the total number of unique modes in the entire table
+  total_modes_cte AS (
     SELECT
-        STRING_AGG(DISTINCT MODE, ', ' ORDER BY MODE ASC) AS MODE_SELECTION,
-        STRING_AGG(DISTINCT SEVERITY, ', ' ORDER BY SEVERITY ASC) AS SEVERITY_SELECTION
+      COUNT(DISTINCT MODE) AS total_mode_count
     FROM
-        crashes.crashes
+      crashes.crashes
+  ),
+  -- 2. Aggregate the modes, applying pluralization before aggregating
+  mode_agg_cte AS (
+    SELECT
+      STRING_AGG(
+        DISTINCT CASE
+          -- If the mode ends with '*', insert 's' before it
+          WHEN MODE LIKE '%*' THEN REPLACE(MODE, '*', 's*')
+          -- Otherwise, just append 's'
+          ELSE MODE || 's'
+        END,
+        ', '
+        ORDER BY
+          MODE ASC
+      ) AS mode_list,
+      COUNT(DISTINCT MODE) AS mode_count
+    FROM
+      crashes.crashes
     WHERE
-        MODE IN ${inputs.multi_mode_dd.value}
-        AND SEVERITY IN ${inputs.multi_severity.value};
+      MODE IN ${inputs.multi_mode_dd.value}
+  ),
+  -- 3. Aggregate severities based on the INTERSECTION of both inputs
+  severity_agg_cte AS (
+    SELECT
+      STRING_AGG(
+        DISTINCT SEVERITY,
+        ', '
+        ORDER BY
+          CASE SEVERITY
+            WHEN 'Minor' THEN 1
+            WHEN 'Major' THEN 2
+            WHEN 'Fatal' THEN 3
+          END
+      ) AS severity_list,
+      COUNT(DISTINCT SEVERITY) AS severity_count
+    FROM
+      crashes.crashes
+    WHERE
+      MODE IN ${inputs.multi_mode_dd.value}
+      AND SEVERITY IN ${inputs.multi_severity.value}
+  )
+-- 4. Combine results and apply final formatting logic to each column
+SELECT
+  CASE
+    WHEN mode_count = 0 THEN ' '
+    WHEN mode_count = total_mode_count THEN 'All Road Users'
+    WHEN mode_count = 1 THEN mode_list
+    WHEN mode_count = 2 THEN REPLACE(mode_list, ', ', ' and ')
+    ELSE REGEXP_REPLACE(mode_list, ',([^,]+)$', ', and \\1')
+  END AS MODE_SELECTION,
+  CASE
+    WHEN severity_count = 0 THEN ' '
+    WHEN severity_count = 1 THEN severity_list
+    WHEN severity_count = 2 THEN REPLACE(severity_list, ', ', ' and ')
+    ELSE REGEXP_REPLACE(severity_list, ',([^,]+)$', ', and \\1')
+  END AS SEVERITY_SELECTION
+FROM
+  mode_agg_cte,
+  severity_agg_cte,
+  total_modes_cte;
 ```
 
 <DateRange
@@ -310,7 +369,6 @@ LIMIT 5;
           }).format(twoDaysAgo);
         })()
   }
-  title="Select Time Period"
   name="date_range"
   presetRanges={['Last 7 Days', 'Last 30 Days', 'Last 90 Days', 'Last 6 Months', 'Last 12 Months', 'Month to Today', 'Last Month', 'Year to Today', 'Last Year', 'All Time']}
   defaultValue="Year to Today"
@@ -321,7 +379,7 @@ LIMIT 5;
     data={unique_severity} 
     name=multi_severity
     value=SEVERITY
-    title="Select Severity"
+    title="Severity"
     multiple=true
     defaultValue={['Fatal', 'Major']}
 />
@@ -330,7 +388,7 @@ LIMIT 5;
     data={unique_mode} 
     name=multi_mode_dd
     value=MODE
-    title="Select Road User"
+    title="Road User"
     multiple=true
     selectAllByDefault=true
     description="*Only fatal"
@@ -340,7 +398,7 @@ LIMIT 5;
     data={age_range} 
     name=min_age
     value=age_int
-    title="Select Min Age" 
+    title="Min Age" 
     defaultValue={0}
 />
 
@@ -348,18 +406,17 @@ LIMIT 5;
     data={age_range} 
     name="max_age"
     value=age_int
-    title="Select Max Age"
+    title="Max Age"
     order="age_int desc"
     defaultValue={120}
     description='Age 120 serves as a placeholder for missing age values in the records. However, missing values will be automatically excluded from the query if the default 0-120 range is changed by the user. To get a count of missing age values, go to the "Age Distribution" page.'
 />
 
-<Alert status="info">
-The selection for <b>Severity</b> is: <b><Value data={mode_severity_selection} column="SEVERITY_SELECTION"/></b>. The selection for <b>Road User</b> is: <b><Value data={mode_severity_selection} column="MODE_SELECTION"/></b> <Info description="*Fatal only." color="primary" />
-</Alert>
-
 <Grid cols=2>
     <Group>
+        <div style="font-size: 14px;">
+            <b>Heatmap of {`${mode_severity_selection[0].SEVERITY_SELECTION}`} Injuries for {`${mode_severity_selection[0].MODE_SELECTION}`}</b>
+        </div>
         <Note>
             Select a hexagon to zoom in and view more details about the injuries resulting from a crash within it.
         </Note>
@@ -367,7 +424,7 @@ The selection for <b>Severity</b> is: <b><Value data={mode_severity_selection} c
             height=560
             startingZoom=12
         >
-            <Areas data={hex_map} geoJsonUrl='https://raw.githubusercontent.com/rafaelmorenoco/Crash-Injury-Dashboard-Frontend/main/static/crash-hexgrid.geojson' geoId=GRID_ID areaCol=GRID_ID value=Injuries link=link min=0 opacity=0.7 />
+            <Areas data={hex_map} geoJsonUrl='https://raw.githubusercontent.com/rafaelmorenoco/Crash-Injury-Dashboard-Frontend/main/static/crash-hexgrid.geojson' geoId=GRID_ID areaCol=GRID_ID value=count link=link min=0 opacity=0.7 />
             <Areas data={unique_hin} geoJsonUrl='https://raw.githubusercontent.com/rafaelmorenoco/Crash-Injury-Dashboard-Frontend/main/static/High_Injury_Network.geojson' geoId=GIS_ID areaCol=GIS_ID borderColor=#9d00ff color=#1C00ff00/ ignoreZoom=true 
             tooltip={[
                 {id: 'ROUTENAME'}
@@ -381,7 +438,7 @@ The selection for <b>Severity</b> is: <b><Value data={mode_severity_selection} c
     <Group>
         <Heatmap 
             data={day}
-            title="Injuries by Day of Week & Time of the Day"
+            title="{`${mode_severity_selection[0].SEVERITY_SELECTION}`} Injuries for {`${mode_severity_selection[0].MODE_SELECTION}`} by Day of Week & Time of the Day"
             subtitle=" "
             x=day_of_week xSort=day_number
             y=total
@@ -516,9 +573,9 @@ The selection for <b>Severity</b> is: <b><Value data={mode_severity_selection} c
         </DataTable>
     </Group>
     <Group>
-        <DataTable data={hex_with_link} title="Hexagon Search" search=true link=link rows=3 rowShading=true sort="Injuries desc">
+        <DataTable data={hex_with_link} title="Hexagon Ranking of {`${mode_severity_selection[0].SEVERITY_SELECTION}`} Injuries for {`${mode_severity_selection[0].MODE_SELECTION}`}" search=true link=link rows=3 rowShading=true sort="count desc">
             <Column id=GRID_ID title="Hexagon ID"/>
-            <Column id=Injuries contentType=colorscale/>
+            <Column id=count contentType=colorscale/>
         </DataTable>
     </Group>
 </Grid>

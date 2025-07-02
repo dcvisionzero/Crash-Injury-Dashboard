@@ -9,11 +9,11 @@ sidebar_position: 1
 
 <Details title="About this dashboard">
 
-    This dashboard shows traffic fatalities in the District of Columbia and can be filtered from 20__-present. Following a fatal crash, the DDOT team visits the site and, in coordination with The Metropolitan Police Department's (MPD) Major Crash Investigation Unit, determines if there are any short-term measures that DDOT can install to improve safety for all roadway users. Starting in 2021, site visit findings and follow-up can be found in the docked window on the right for each fatality.
+    This dashboard shows traffic fatalities in the District of Columbia and can be filtered from 2017-present. Following a fatal crash, the DDOT team visits the site and, in coordination with The Metropolitan Police Department's (MPD) Major Crash Investigation Unit, determines if there are any short-term measures that DDOT can install to improve safety for all roadway users. Starting in 2021, site visit findings and follow-up can be found in the docked window on the right for each fatality.
     
-    Adjust the Mode, Date, and Ward filters to refine the results in the map. All charts will update to reflect the fatalities affected by the filters. 
+    Adjust the selection for Road User, Date Range, and Age filters to refine the results in the map nad table. All charts will update to reflect the fatalities affected by the filters. 
     
-    Data are updated twice: first, as soon as DDOT receives a fatality memo from the Metropolitan Police Department (MPD) and second, after a crash site visit has been completed.
+    Data are updated twice: first, as soon as the Vision Zero Office receives a fatality memo from the Metropolitan Police Department (MPD) and second, after a crash site visit has been completed by DDOT.
 
 </Details>
 
@@ -139,12 +139,46 @@ GROUP BY all;
 ```
 
 ```sql mode_selection
+WITH
+  -- 0. Normalize mode values by removing '*' suffix
+  clean_modes AS (
+    SELECT
+      REPLACE(MODE, '*', '') AS mode_clean
+    FROM crashes.crashes
+  ),
+
+  -- 1. Count distinct cleaned modes in the entire table
+  total_modes_cte AS (
+    SELECT
+      COUNT(DISTINCT mode_clean) AS total_mode_count
+    FROM clean_modes
+  ),
+
+  -- 2. Aggregate the cleaned modes, always appending 's'
+  mode_agg_cte AS (
+    SELECT
+      STRING_AGG(
+        DISTINCT mode_clean || 's',
+        ', '
+        ORDER BY mode_clean
+      ) AS mode_list,
+      COUNT(DISTINCT mode_clean) AS mode_count
+    FROM clean_modes
+    WHERE mode_clean IN ${inputs.multi_mode_dd.value}
+  )
+
+-- 3. Final formatting logic
 SELECT
-    STRING_AGG(DISTINCT MODE, ', ' ORDER BY MODE ASC) AS MODE_SELECTION
+  CASE
+    WHEN mode_count = 0 THEN ' '
+    WHEN mode_count = total_mode_count THEN 'All Road Users'
+    WHEN mode_count = 1 THEN mode_list
+    WHEN mode_count = 2 THEN REPLACE(mode_list, ', ', ' and ')
+    ELSE REGEXP_REPLACE(mode_list, ',([^,]+)$', ', and \\1')
+  END AS MODE_SELECTION
 FROM
-    crashes.crashes
-WHERE
-    MODE IN ${inputs.multi_mode_dd.value};
+  mode_agg_cte,
+  total_modes_cte;
 ```
 
 As of <Value data={last_record} column="latest_record"/> there <Value data={yoy_text_fatal} column="has_have"/> been <Value data={yoy_text_fatal} column="current_year_sum" agg=sum/> <Value data={yoy_text_fatal} column="fatality"/> among all road users in <Value data={yoy_text_fatal} column="current_year" fmt='####","'/>   <Value data={yoy_text_fatal} column="difference" agg=sum fmt='####' /> <Value data={yoy_text_fatal} column="difference_text"/> (<Delta data={yoy_text_fatal} column="percentage_change" fmt="+0%;-0%;0%" downIsGood=True neutralMin=-0.00 neutralMax=0.00/>) compared to the same period in <Value data={yoy_text_fatal} column="year_prior" fmt="####."/>
@@ -161,7 +195,6 @@ As of <Value data={last_record} column="latest_record"/> there <Value data={yoy_
           }).format(twoDaysAgo);
         })()
   }
-  title="Select Time Period"
   name="date_range"
   presetRanges={['Last 7 Days', 'Last 30 Days', 'Last 90 Days', 'Last 6 Months', 'Last 12 Months', 'Month to Today', 'Last Month', 'Year to Today', 'Last Year']}
   defaultValue="Year to Today"
@@ -172,7 +205,7 @@ As of <Value data={last_record} column="latest_record"/> there <Value data={yoy_
     data={unique_mode} 
     name=multi_mode_dd
     value=MODE
-    title="Select Road User"
+    title="Road User"
     multiple=true
     selectAllByDefault=true
 />
@@ -181,7 +214,7 @@ As of <Value data={last_record} column="latest_record"/> there <Value data={yoy_
     data={age_range} 
     name=min_age
     value=age_int
-    title="Select Min Age" 
+    title="Min Age" 
     defaultValue={0}
 />
 
@@ -189,18 +222,17 @@ As of <Value data={last_record} column="latest_record"/> there <Value data={yoy_
     data={age_range} 
     name="max_age"
     value=age_int
-    title="Select Max Age"
+    title="Max Age"
     order="age_int desc"
     defaultValue={120}
     description='Age 120 serves as a placeholder for missing age values in the records. However, missing values will be automatically excluded from the query if the default 0-120 range is changed by the user. To get a count of missing age values, go to the "Age Distribution" page.'
 />
 
-<Alert status="info">
-The selection for <b>Road User</b> is: <b><Value data={mode_selection} column="MODE_SELECTION"/></b>
-</Alert>
-
 <Grid cols=2>
     <Group>
+        <div style="font-size: 14px;">
+            <b>Map of Fatalities for {`${mode_selection[0].MODE_SELECTION}`}</b>
+        </div>
         <Note>
             Each point on the map represents an fatality. Fatality incidents can overlap in the same spot.
         </Note>
@@ -229,6 +261,9 @@ The selection for <b>Road User</b> is: <b><Value data={mode_selection} column="M
         </Note>
     </Group>
     <Group>
+        <div style="font-size: 14px;">
+            <b>Table of Fatalities for {`${mode_selection[0].MODE_SELECTION}`}</b>
+        </div>
         <Note class='text-sm'>
             Select a fatality in the table to see more details about it and the post-crash follow-up.
         </Note>

@@ -95,14 +95,73 @@ ORDER BY d.day DESC;
 ```
 
 ```sql mode_severity_selection
+WITH
+  -- 1. Get the total number of unique modes in the entire table
+  total_modes_cte AS (
+    SELECT
+      COUNT(DISTINCT MODE) AS total_mode_count
+    FROM
+      crashes.crashes
+  ),
+  -- 2. Aggregate the modes, applying pluralization before aggregating
+  mode_agg_cte AS (
+    SELECT
+      STRING_AGG(
+        DISTINCT CASE
+          -- If the mode ends with '*', insert 's' before it
+          WHEN MODE LIKE '%*' THEN REPLACE(MODE, '*', 's*')
+          -- Otherwise, just append 's'
+          ELSE MODE || 's'
+        END,
+        ', '
+        ORDER BY
+          MODE ASC
+      ) AS mode_list,
+      COUNT(DISTINCT MODE) AS mode_count
+    FROM
+      crashes.crashes
+    WHERE
+      MODE IN ${inputs.multi_mode_dd.value}
+  ),
+  -- 3. Aggregate severities based on the INTERSECTION of both inputs
+  severity_agg_cte AS (
+    SELECT
+      STRING_AGG(
+        DISTINCT SEVERITY,
+        ', '
+        ORDER BY
+          CASE SEVERITY
+            WHEN 'Minor' THEN 1
+            WHEN 'Major' THEN 2
+            WHEN 'Fatal' THEN 3
+          END
+      ) AS severity_list,
+      COUNT(DISTINCT SEVERITY) AS severity_count
+    FROM
+      crashes.crashes
+    WHERE
+      MODE IN ${inputs.multi_mode_dd.value}
+      AND SEVERITY IN ${inputs.multi_severity.value}
+  )
+-- 4. Combine results and apply final formatting logic to each column
 SELECT
-    STRING_AGG(DISTINCT MODE, ', ' ORDER BY MODE ASC) AS MODE_SELECTION,
-    STRING_AGG(DISTINCT SEVERITY, ', ' ORDER BY SEVERITY ASC) AS SEVERITY_SELECTION
+  CASE
+    WHEN mode_count = 0 THEN ' '
+    WHEN mode_count = total_mode_count THEN 'All Road Users'
+    WHEN mode_count = 1 THEN mode_list
+    WHEN mode_count = 2 THEN REPLACE(mode_list, ', ', ' and ')
+    ELSE REGEXP_REPLACE(mode_list, ',([^,]+)$', ', and \\1')
+  END AS MODE_SELECTION,
+  CASE
+    WHEN severity_count = 0 THEN ' '
+    WHEN severity_count = 1 THEN severity_list
+    WHEN severity_count = 2 THEN REPLACE(severity_list, ', ', ' and ')
+    ELSE REGEXP_REPLACE(severity_list, ',([^,]+)$', ', and \\1')
+  END AS SEVERITY_SELECTION
 FROM
-    crashes.crashes
-WHERE
-    MODE IN ${inputs.multi_mode_dd.value}
-    AND SEVERITY IN ${inputs.multi_severity.value};
+  mode_agg_cte,
+  severity_agg_cte,
+  total_modes_cte;
 ```
 
 The last 7 days with available data range from <Value data={inc_map} column="WEEKDAY" agg="min"/> to <Value data={inc_map} column="WEEKDAY" agg="max" />
@@ -111,7 +170,7 @@ The last 7 days with available data range from <Value data={inc_map} column="WEE
     data={unique_severity} 
     name=multi_severity
     value=SEVERITY
-    title="Select Severity"
+    title="Severity"
     multiple=true
     defaultValue={["Major","Fatal"]}
 />
@@ -120,7 +179,7 @@ The last 7 days with available data range from <Value data={inc_map} column="WEE
     data={unique_mode} 
     name=multi_mode_dd
     value=MODE
-    title="Select Road User"
+    title="Road User"
     multiple=true
     selectAllByDefault=true
     description="*Only fatal"
@@ -130,7 +189,7 @@ The last 7 days with available data range from <Value data={inc_map} column="WEE
     data={age_range} 
     name=min_age
     value=age_int
-    title="Select Min Age" 
+    title="Min Age" 
     defaultValue={0}
 />
 
@@ -138,18 +197,17 @@ The last 7 days with available data range from <Value data={inc_map} column="WEE
     data={age_range} 
     name="max_age"
     value=age_int
-    title="Select Max Age"
+    title="Max Age"
     order="age_int desc"
     defaultValue={120}
     description='Age 120 serves as a placeholder for missing age values in the records. However, missing values will be automatically excluded from the query if the default 0-120 range is changed by the user. To get a count of missing age values, go to the "Age Distribution" page.'
 />
 
-<Alert status="info">
-The selection for <b>Severity</b> is: <b><Value data={mode_severity_selection} column="SEVERITY_SELECTION"/></b>. The selection for <b>Road User</b> is: <b><Value data={mode_severity_selection} column="MODE_SELECTION"/></b> <Info description="*Fatal only." color="primary" />
-</Alert>
-
 <Grid cols=2>
     <Group>
+        <div style="font-size: 14px;">
+            <b>Last 7 Days - Map of {`${mode_severity_selection[0].SEVERITY_SELECTION}`} Injuries for {`${mode_severity_selection[0].MODE_SELECTION}`}</b>
+        </div>
         <Note>
             Each point on the map represents an injury. Injury incidents can overlap in the same spot.
         </Note>
@@ -177,7 +235,7 @@ The selection for <b>Severity</b> is: <b><Value data={mode_severity_selection} c
         </Note>
     </Group>
     <Group>
-        <DataTable data={inc_map} wrapTitles=true rowShading=true groupBy=WEEKDAY subtotals=true sort="WEEKDAY desc" totalRow=true accordionRowColor="#D3D3D3">
+        <DataTable data={inc_map} title="Last 7 Days - Table of {`${mode_severity_selection[0].SEVERITY_SELECTION}`} Injuries for {`${mode_severity_selection[0].MODE_SELECTION}`}" wrapTitles=true rowShading=true groupBy=WEEKDAY subtotals=true sort="WEEKDAY desc" totalRow=true accordionRowColor="#D3D3D3">
             <Column id=REPORTDATE title="Date" fmt='hh:mm' wrap=true totalAgg="Total"/>
             <Column id=MODESEV title="Road User - Sev" wrap=true/>
             <Column id=AGE title="Age" wrap=true totalAgg="-"/>

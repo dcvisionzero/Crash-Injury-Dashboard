@@ -47,14 +47,73 @@ group by all
 ```
 
 ```sql mode_severity_selection
+WITH
+  -- 1. Get the total number of unique modes in the entire table
+  total_modes_cte AS (
+    SELECT
+      COUNT(DISTINCT MODE) AS total_mode_count
+    FROM
+      crashes.crashes
+  ),
+  -- 2. Aggregate the modes, applying pluralization before aggregating
+  mode_agg_cte AS (
+    SELECT
+      STRING_AGG(
+        DISTINCT CASE
+          -- If the mode ends with '*', insert 's' before it
+          WHEN MODE LIKE '%*' THEN REPLACE(MODE, '*', 's*')
+          -- Otherwise, just append 's'
+          ELSE MODE || 's'
+        END,
+        ', '
+        ORDER BY
+          MODE ASC
+      ) AS mode_list,
+      COUNT(DISTINCT MODE) AS mode_count
+    FROM
+      crashes.crashes
+    WHERE
+      MODE IN ${inputs.multi_mode_dd.value}
+  ),
+  -- 3. Aggregate severities based on the INTERSECTION of both inputs
+  severity_agg_cte AS (
+    SELECT
+      STRING_AGG(
+        DISTINCT SEVERITY,
+        ', '
+        ORDER BY
+          CASE SEVERITY
+            WHEN 'Minor' THEN 1
+            WHEN 'Major' THEN 2
+            WHEN 'Fatal' THEN 3
+          END
+      ) AS severity_list,
+      COUNT(DISTINCT SEVERITY) AS severity_count
+    FROM
+      crashes.crashes
+    WHERE
+      MODE IN ${inputs.multi_mode_dd.value}
+      AND SEVERITY IN ${inputs.multi_severity.value}
+  )
+-- 4. Combine results and apply final formatting logic to each column
 SELECT
-    STRING_AGG(DISTINCT MODE, ', ' ORDER BY MODE ASC) AS MODE_SELECTION,
-    STRING_AGG(DISTINCT SEVERITY, ', ' ORDER BY SEVERITY ASC) AS SEVERITY_SELECTION
+  CASE
+    WHEN mode_count = 0 THEN ' '
+    WHEN mode_count = total_mode_count THEN 'All Road Users'
+    WHEN mode_count = 1 THEN mode_list
+    WHEN mode_count = 2 THEN REPLACE(mode_list, ', ', ' and ')
+    ELSE REGEXP_REPLACE(mode_list, ',([^,]+)$', ', and \\1')
+  END AS MODE_SELECTION,
+  CASE
+    WHEN severity_count = 0 THEN ' '
+    WHEN severity_count = 1 THEN severity_list
+    WHEN severity_count = 2 THEN REPLACE(severity_list, ', ', ' and ')
+    ELSE REGEXP_REPLACE(severity_list, ',([^,]+)$', ', and \\1')
+  END AS SEVERITY_SELECTION
 FROM
-    crashes.crashes
-WHERE
-    MODE IN ${inputs.multi_mode_dd.value}
-    AND SEVERITY IN ${inputs.multi_severity.value};
+  mode_agg_cte,
+  severity_agg_cte,
+  total_modes_cte;
 ```
 
 ```sql ytd_avg
@@ -106,24 +165,27 @@ WITH
   ),
   -- Extract month/day details, current year & build a date_range_label following your criteria.
   date_info AS (
-    SELECT 
-      current_start_date AS start_date,
-      current_end_date AS end_date,
-      CASE 
-          WHEN current_start_date = DATE_TRUNC('year', current_end_date)
-               AND '${inputs.date_range.end}'::DATE = end_date::DATE
-            THEN 'to Date'
-          WHEN '${inputs.date_range.end}'::DATE > end_date::DATE
-            THEN strftime(current_start_date, '%m/%d') 
-                 || '-' || strftime(current_end_date, '%m/%d')
-          ELSE 
-            strftime(current_start_date, '%m/%d') 
-                 || '-' || strftime(current_end_date, '%m/%d')
-      END AS date_range_label,
+    SELECT
+      current_start_date   AS start_date,
+      current_end_date     AS end_date,
+
+      CASE
+        WHEN current_start_date = DATE_TRUNC('year', current_end_date)
+            AND '${inputs.date_range.end}'::DATE = current_end_date::DATE
+          THEN 'to Date'
+        ELSE
+          '('
+          || strftime(current_start_date, '%m/%d')
+          || '-'
+          || strftime(current_end_date,   '%m/%d')
+          || ')'
+      END                   AS date_range_label,
+
       (current_end_date - current_start_date) AS date_range_days,
-      strftime(current_start_date, '%m-%d') AS month_day_start,
-      strftime(current_end_date, '%m-%d') AS month_day_end,
-      EXTRACT(YEAR FROM current_end_date) AS current_year
+      strftime(current_start_date, '%m-%d')   AS month_day_start,
+      strftime(current_end_date,   '%m-%d')   AS month_day_end,
+      EXTRACT(YEAR FROM current_end_date)     AS current_year
+
     FROM report_date_range
   ),
   -- Build the allowed list of years from the crashes table (as strings) within a lower bound and the max date,
@@ -310,7 +372,7 @@ ORDER BY yc.yr DESC;
     data={unique_severity} 
     name=multi_severity
     value=SEVERITY
-    title="Select Severity"
+    title="Severity"
     multiple=true
     defaultValue={["Major","Fatal"]}
 />
@@ -319,7 +381,7 @@ ORDER BY yc.yr DESC;
     data={unique_mode} 
     name=multi_mode_dd
     value=MODE
-    title="Select Road User"
+    title="Road User"
     multiple=true
     selectAllByDefault=true
     description="*Only fatal"
@@ -329,7 +391,7 @@ ORDER BY yc.yr DESC;
     data={age_range} 
     name=min_age
     value=age_int
-    title="Select Min Age" 
+    title=" Min Age" 
     defaultValue={0}
 />
 
@@ -337,15 +399,11 @@ ORDER BY yc.yr DESC;
     data={age_range} 
     name="max_age"
     value=age_int
-    title="Select Max Age"
+    title="Max Age"
     order="age_int desc"
     defaultValue={120}
     description='Age 120 serves as a placeholder for missing age values in the records. However, missing values will be automatically excluded from the query if the default 0-120 range is changed by the user. To get a count of missing age values, go to the "Age Distribution" page.'
 />
-
-<Alert status="info">
-The selection for <b>Severity</b> is: <b><Value data={mode_severity_selection} column="SEVERITY_SELECTION"/></b>. The selection for <b>Road User</b> is: <b><Value data={mode_severity_selection} column="MODE_SELECTION"/></b> <Info description="*Fatal only." color="primary" />
-</Alert>
 
 <DateRange
 start={
@@ -366,9 +424,8 @@ start={
               }).format(twoDaysAgo);
             })()
       }
-title="Select Time Period"
 name="date_range"
-presetRanges={['Last 7 Days', 'Last 30 Days', 'Last 90 Days', 'Last 6 Months', 'Last 12 Months', 'Month to Today', 'Last Month', 'Year to Today']}
+presetRanges={['Last 7 Days', 'Last 30 Days', 'Month to Today', 'Last Month', 'Year to Today']}
 defaultValue="Year to Today"
 description="By default, there is a two-day lag after the latest update"
 />
@@ -377,25 +434,26 @@ description="By default, there is a two-day lag after the latest update"
     data={unique_year} 
     name=multi_year
     value=year_string
-    title="Select Year"
+    title="Year"
     multiple=true
     selectAllByDefault=true
 />
 
 <Grid cols=2>
     <Group>
+        <div style="font-size: 14px;">
+            <b>Year {ytd_table[0].Date_Range} Comparison of {`${mode_severity_selection[0].SEVERITY_SELECTION}`} Injuries for {`${mode_severity_selection[0].MODE_SELECTION}`}</b>
+        </div>
         <BarChart 
           data={ytd_table}
           chartAreaHeight=230 
           x="Year" 
           y="Count" 
           labels={true} 
-          yAxisTitle="Injuries" 
           xAxisLabels={true} 
           xTickMarks={true} 
           leftPadding={10} 
-          rightPadding={30} 
-          title={`Years ${ytd_table[0].Date_Range}`}
+          rightPadding={30}
           echartsOptions={{
             xAxis: {
               type: 'category',
@@ -409,9 +467,9 @@ description="By default, there is a two-day lag after the latest update"
         </BarChart>
     </Group>
     <Group>
-        <DataTable data={ytd_table} wrapTitles=true rowShading=true title="{ytd_table[0].Year} {ytd_table[0].Date_Range} vs Prior Years {ytd_table[0].Date_Range}">
+        <DataTable data={ytd_table} wrapTitles=true rowShading=true title="{ytd_table[0].Year} {ytd_table[0].Date_Range} vs Prior Years {ytd_table[0].Date_Range} Comparison of {`${mode_severity_selection[0].SEVERITY_SELECTION}`} Injuries for {`${mode_severity_selection[0].MODE_SELECTION}`}">
             <Column id=Year wrap=true/>
-            <Column id=Count title="Injuries"/>
+            <Column id=Count/>
             <Column id=Diff_from_current contentType=delta downIsGood=True title=" {ytd_table[0].Year} Diff"/>
             <Column id=Percent_Diff_from_current fmt='pct0' title="{ytd_table[0].Year} % Diff"/> 
         </DataTable>
@@ -456,18 +514,19 @@ end={
 
 <Grid cols=2>
     <Group>
+        <div style="font-size: 14px;">
+            <b>Calendar Year ({cy_table[0].Date_Range}) Comparison of {`${mode_severity_selection[0].SEVERITY_SELECTION}`} Injuries for {`${mode_severity_selection[0].MODE_SELECTION}`}</b>
+        </div>
         <BarChart 
           data={cy_table}
           chartAreaHeight=230 
           x="Year" 
           y="Count" 
           labels={true} 
-          yAxisTitle="Injuries" 
           xAxisLabels={true} 
           xTickMarks={true} 
           leftPadding={10} 
-          rightPadding={30} 
-          title={`Calendar Years from ${cy_table[0].Date_Range}`}
+          rightPadding={30}
           echartsOptions={{
             xAxis: {
               type: 'category',
@@ -481,9 +540,9 @@ end={
         </BarChart>
     </Group>
     <Group>
-        <DataTable data={cy_table} wrapTitles=true rowShading=true title="Comparison of Prior Calendar Years from {cy_table[0].Date_Range}">
+        <DataTable data={cy_table} wrapTitles=true rowShading=true title="Calendar  Year ({cy_table[0].Date_Range}) Over Year Comparison of {`${mode_severity_selection[0].SEVERITY_SELECTION}`} Injuries for {`${mode_severity_selection[0].MODE_SELECTION}`}">
             <Column id=Year wrap=true/>
-            <Column id=Count title="Injuries"/>
+            <Column id=Count/>
             <Column id=Diff_from_previous contentType=delta downIsGood=True title="Prior Year Diff"/>
             <Column id=Percent_Diff_from_previous fmt='pct0' title="Prior Year % Diff"/> 
         </DataTable>
