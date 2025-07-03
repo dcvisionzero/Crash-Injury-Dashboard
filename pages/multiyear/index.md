@@ -446,6 +446,7 @@ description="By default, there is a two-day lag after the latest update"
         </div>
         <BarChart 
           data={ytd_table}
+          subtitle=" "
           chartAreaHeight=230 
           x="Year" 
           y="Count" 
@@ -494,7 +495,6 @@ end={
         }).format(currentYearEnd);
       })()
     }
-  title="Select Time Period"
   name="date_range_cy"
   presetRanges={['Last Year']}
   defaultValue='Last Year'
@@ -519,6 +519,7 @@ end={
         </div>
         <BarChart 
           data={cy_table}
+          subtitle=" "
           chartAreaHeight=230 
           x="Year" 
           y="Count" 

@@ -39,7 +39,7 @@ group by all
 ```sql ward_map
 SELECT
     w.WARD_ID AS WARD,
-    COALESCE(SUM(c.COUNT), 0) AS Injuries
+    COALESCE(SUM(c.COUNT), 0) AS count
 FROM wards.wards_2022 w
 LEFT JOIN crashes.crashes c
     ON w.WARD_ID = c.WARD
@@ -354,10 +354,10 @@ FROM
                 {id: 'ROUTENAME'}
             ]}
         />
-        <Areas data={ward_map} geoJsonUrl='https://raw.githubusercontent.com/rafaelmorenoco/Crash-Injury-Dashboard-Frontend/main/static/Wards_from_2022.geojson' geoId=WARD_ID areaCol=WARD value=Injuries min=0 opacity=0.7 borderWidth=1 borderColor='#A9A9A9'
+        <Areas data={ward_map} geoJsonUrl='https://raw.githubusercontent.com/rafaelmorenoco/Crash-Injury-Dashboard-Frontend/main/static/Wards_from_2022.geojson' geoId=WARD_ID areaCol=WARD value=count min=0 opacity=0.7 borderWidth=1 borderColor='#A9A9A9'
             tooltip={[
                 {id:'WARD', title:"Ward", valueClass: 'text-base font-semibold', fieldClass: 'text-base font-semibold'},
-                {id:'Injuries'}
+                {id:'count'}
             ]}
         />
         </BaseMap>

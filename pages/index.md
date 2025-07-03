@@ -39,13 +39,22 @@ group by all
 ```
 
 ```sql indicators
-SELECT 
-    sum(LPI) AS LPI,
-    sum(RRFB) AS RRFB,
-    sum(SLS) AS SLS,
-    sum(CE) AS CE,
-    'https://visionzero.dc.gov/pages/engineering' AS link
-FROM wards.wards_2022;
+SELECT improvement, 
+    'https://visionzero.dc.gov/pages/engineering#safety' AS link,
+    SUM(Count) AS count,
+      CASE
+    WHEN improvement = 'Leading Pedestrian Intervals (LPI)'
+      THEN 'https://raw.githubusercontent.com/rafaelmorenoco/Crash-Injury-Dashboard-Backend/main/Icons/LPI.png'
+    WHEN improvement = 'Rectangular Rapid Flashing Beacon (RRFB)'
+      THEN 'https://raw.githubusercontent.com/rafaelmorenoco/Crash-Injury-Dashboard-Backend/main/Icons/RRFB.png'
+    WHEN improvement = 'Curb Extensions'
+      THEN 'https://cdn-icons-png.flaticon.com/128/19010/19010426.png'
+    WHEN improvement = '20 MPH Speed Limit Signs'
+      THEN 'https://cdn-icons-png.flaticon.com/128/19010/19010426.png'
+    ELSE NULL
+  END AS icon
+FROM interventions.interventions
+GROUP BY improvement;
 ```
 
 ```sql barchart_mode
@@ -952,10 +961,9 @@ echartsOptions={{animation: false}}
             leftPadding={10}
         /> 
         <DataTable data={indicators} wrapTitles=true rowShading=true title="Roadway Safety Interventions" subtitle="Select any roadway intervention to learn more" link=link>
-            <Column id=LPI title="Leading Pedestrian Intervals (LPI)"/>
-            <Column id=RRFB title="Rectangular Rapid Flashing Beacon (RRFB)"/>
-            <Column id=SLS title="20 MPH Speed Limit Signs"/>
-            <Column id=CE title="Curb Extensions"/>
+            <Column id=improvement wrap=true title="Intervention"/>
+            <Column id=icon title=' ' contentType=image height=22px align=center />
+            <Column id=count/>
         </DataTable>
     </Group>
 </Grid>

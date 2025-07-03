@@ -116,7 +116,7 @@ SELECT
     SEVERITY,
     ADDRESS,
     CCN,
-    replace(MODE, '*', '') || ' - ' || CCN AS mode_ccn,
+    replace(MODE, '*', '') || '-' || CCN AS mode_ccn,
     CASE
         WHEN CAST(AGE AS INTEGER) = 120 THEN '-'
         ELSE CAST(CAST(AGE AS INTEGER) AS VARCHAR)

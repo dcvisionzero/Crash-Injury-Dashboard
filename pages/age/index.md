@@ -329,14 +329,73 @@ ORDER BY bucket_order, Period_range;
 ```
 
 ```sql mode_severity_selection
+WITH
+  -- 1. Get the total number of unique modes in the entire table
+  total_modes_cte AS (
+    SELECT
+      COUNT(DISTINCT MODE) AS total_mode_count
+    FROM
+      crashes.crashes
+  ),
+  -- 2. Aggregate the modes, applying pluralization before aggregating
+  mode_agg_cte AS (
+    SELECT
+      STRING_AGG(
+        DISTINCT CASE
+          -- If the mode ends with '*', insert 's' before it
+          WHEN MODE LIKE '%*' THEN REPLACE(MODE, '*', 's*')
+          -- Otherwise, just append 's'
+          ELSE MODE || 's'
+        END,
+        ', '
+        ORDER BY
+          MODE ASC
+      ) AS mode_list,
+      COUNT(DISTINCT MODE) AS mode_count
+    FROM
+      crashes.crashes
+    WHERE
+      MODE IN ${inputs.multi_mode_dd.value}
+  ),
+  -- 3. Aggregate severities based on the INTERSECTION of both inputs
+  severity_agg_cte AS (
+    SELECT
+      STRING_AGG(
+        DISTINCT SEVERITY,
+        ', '
+        ORDER BY
+          CASE SEVERITY
+            WHEN 'Minor' THEN 1
+            WHEN 'Major' THEN 2
+            WHEN 'Fatal' THEN 3
+          END
+      ) AS severity_list,
+      COUNT(DISTINCT SEVERITY) AS severity_count
+    FROM
+      crashes.crashes
+    WHERE
+      MODE IN ${inputs.multi_mode_dd.value}
+      AND SEVERITY IN ${inputs.multi_severity.value}
+  )
+-- 4. Combine results and apply final formatting logic to each column
 SELECT
-    STRING_AGG(DISTINCT MODE, ', ' ORDER BY MODE ASC) AS MODE_SELECTION,
-    STRING_AGG(DISTINCT SEVERITY, ', ' ORDER BY SEVERITY ASC) AS SEVERITY_SELECTION
+  CASE
+    WHEN mode_count = 0 THEN ' '
+    WHEN mode_count = total_mode_count THEN 'All Road Users'
+    WHEN mode_count = 1 THEN mode_list
+    WHEN mode_count = 2 THEN REPLACE(mode_list, ', ', ' and ')
+    ELSE REGEXP_REPLACE(mode_list, ',([^,]+)$', ', and \\1')
+  END AS MODE_SELECTION,
+  CASE
+    WHEN severity_count = 0 THEN ' '
+    WHEN severity_count = 1 THEN severity_list
+    WHEN severity_count = 2 THEN REPLACE(severity_list, ', ', ' and ')
+    ELSE REGEXP_REPLACE(severity_list, ',([^,]+)$', ', and \\1')
+  END AS SEVERITY_SELECTION
 FROM
-    crashes.crashes
-WHERE
-    MODE IN ${inputs.multi_mode_dd.value}
-    AND SEVERITY IN ${inputs.multi_severity.value};
+  mode_agg_cte,
+  severity_agg_cte,
+  total_modes_cte;
 ```
 
 <DateRange
@@ -351,7 +410,6 @@ WHERE
           }).format(twoDaysAgo);
         })()
   }
-  title="Select Time Period"
   name="date_range"
   presetRanges={['Last 7 Days', 'Last 30 Days', 'Last 90 Days', 'Last 6 Months', 'Last 12 Months', 'Month to Today', 'Last Month', 'Year to Today', 'Last Year']}
   defaultValue="Year to Today"
@@ -362,7 +420,7 @@ WHERE
     data={unique_severity} 
     name=multi_severity
     value=SEVERITY
-    title="Select Severity"
+    title="Severity"
     multiple=true
     defaultValue={['Fatal', 'Major']}
 />
@@ -371,7 +429,7 @@ WHERE
     data={unique_mode} 
     name=multi_mode_dd
     value=MODE
-    title="Select Road User"
+    title="Road User"
     multiple=true
     selectAllByDefault=true
     description="*Only fatal"
@@ -381,7 +439,7 @@ WHERE
     data={age_range} 
     name=min_age
     value=age_int
-    title="Select Min Age" 
+    title="Min Age" 
     defaultValue={0}
     description='The minumum age for the current selection of filters is {min_max_age[0].unique_min_age}.'
 />
@@ -390,26 +448,24 @@ WHERE
     data={age_range} 
     name="max_age"
     value=age_int
-    title="Select Max Age"
+    title="Max Age"
     order="age_int desc"
     defaultValue={120}
     description='Age 120 serves as a placeholder for missing age values in the records. However, missing values will be automatically excluded from the query if the default 0-120 range is changed by the user. The maximum age for the current selection of filters is {min_max_age[0].unique_max_age}.'
 />
 
-<Alert status="info">
-The selection for <b>Severity</b> is: <b><Value data={mode_severity_selection} column="SEVERITY_SELECTION"/></b>. The selection for <b>Road User</b> is: <b><Value data={mode_severity_selection} column="MODE_SELECTION"/></b> <Info description="*Fatal only." color="primary" />
-</Alert>
-
 <Grid cols=2>
     <Group>
+        <div style="font-size: 14px;">
+            <b>Age Distribution of {mode_severity_selection[0].MODE_SELECTION} by Injury Severity ({age_comparison[0].Period_range})</b>
+        </div>
         <BarChart 
             data={age_severity}
-            title="Age Distribution by Severity"
             chartAreaHeight=300
             x="bucket_label" 
             y="Injuries"
             labels={true} 
-            yAxisTitle="Injuries" 
+            yAxisTitle="Count" 
             series=SEVERITY
             seriesColors={{"Minor": '#ffdf00',"Major": '#ff9412',"Fatal": '#ff5a53'}}
             xAxisLabels={true} 
@@ -421,14 +477,16 @@ The selection for <b>Severity</b> is: <b><Value data={mode_severity_selection} c
         />
     </Group>
     <Group>
+        <div style="font-size: 14px;">
+            <b>Age Distribution of {mode_severity_selection[0].MODE_SELECTION} ({age_comparison[0].Period_range})</b>
+        </div>
         <BarChart 
             data={age_mode}
-            title="Age Distribution by Road User"
             chartAreaHeight=300
             x="bucket_label" 
             y="Injuries"
             labels={true} 
-            yAxisTitle="Injuries" 
+            yAxisTitle="Count" 
             series=MODE
             seriesColors={{"Pedestrian": '#00FFD4',"Other": '#06DFC8',"Bicyclist": '#0BBFBC',"Scooterist*": '#119FB0',"Motorcyclist*": '#167FA3',"Passenger": '#1C5F97',"Driver": '#271F7F',"Unknown": '#213F8B'}}
             xAxisLabels={true} 
@@ -441,9 +499,11 @@ The selection for <b>Severity</b> is: <b><Value data={mode_severity_selection} c
     </Group>
 </Grid>
 
+<div style="font-size: 14px;">
+    <b>Percentage Breakdown of {mode_severity_selection[0].SEVERITY_SELECTION} Injuries for {mode_severity_selection[0].MODE_SELECTION} by Age Group</b>
+</div>
 <BarChart 
     data={age_comparison}
-    title="Percentage Breakdown of Injuries by Age Group"
     chartAreaHeight=100
     x=Period_range
     y=Injuries

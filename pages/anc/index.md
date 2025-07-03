@@ -46,7 +46,7 @@ group by 1
 ```sql anc_map
 SELECT
     a.ANC,
-    COALESCE(SUM(c.COUNT), 0) AS Injuries,
+    COALESCE(SUM(c.COUNT), 0) AS count,
     '/Crash-Injury-Dashboard/anc/' || a.ANC AS link
 FROM anc.anc_2023 a
 LEFT JOIN crashes.crashes c 
@@ -214,14 +214,73 @@ LEFT JOIN
 ```
 
 ```sql mode_severity_selection
+WITH
+  -- 1. Get the total number of unique modes in the entire table
+  total_modes_cte AS (
+    SELECT
+      COUNT(DISTINCT MODE) AS total_mode_count
+    FROM
+      crashes.crashes
+  ),
+  -- 2. Aggregate the modes, applying pluralization before aggregating
+  mode_agg_cte AS (
+    SELECT
+      STRING_AGG(
+        DISTINCT CASE
+          -- If the mode ends with '*', insert 's' before it
+          WHEN MODE LIKE '%*' THEN REPLACE(MODE, '*', 's*')
+          -- Otherwise, just append 's'
+          ELSE MODE || 's'
+        END,
+        ', '
+        ORDER BY
+          MODE ASC
+      ) AS mode_list,
+      COUNT(DISTINCT MODE) AS mode_count
+    FROM
+      crashes.crashes
+    WHERE
+      MODE IN ${inputs.multi_mode_dd.value}
+  ),
+  -- 3. Aggregate severities based on the INTERSECTION of both inputs
+  severity_agg_cte AS (
+    SELECT
+      STRING_AGG(
+        DISTINCT SEVERITY,
+        ', '
+        ORDER BY
+          CASE SEVERITY
+            WHEN 'Minor' THEN 1
+            WHEN 'Major' THEN 2
+            WHEN 'Fatal' THEN 3
+          END
+      ) AS severity_list,
+      COUNT(DISTINCT SEVERITY) AS severity_count
+    FROM
+      crashes.crashes
+    WHERE
+      MODE IN ${inputs.multi_mode_dd.value}
+      AND SEVERITY IN ${inputs.multi_severity.value}
+  )
+-- 4. Combine results and apply final formatting logic to each column
 SELECT
-    STRING_AGG(DISTINCT MODE, ', ' ORDER BY MODE ASC) AS MODE_SELECTION,
-    STRING_AGG(DISTINCT SEVERITY, ', ' ORDER BY SEVERITY ASC) AS SEVERITY_SELECTION
+  CASE
+    WHEN mode_count = 0 THEN ' '
+    WHEN mode_count = total_mode_count THEN 'All Road Users'
+    WHEN mode_count = 1 THEN mode_list
+    WHEN mode_count = 2 THEN REPLACE(mode_list, ', ', ' and ')
+    ELSE REGEXP_REPLACE(mode_list, ',([^,]+)$', ', and \\1')
+  END AS MODE_SELECTION,
+  CASE
+    WHEN severity_count = 0 THEN ' '
+    WHEN severity_count = 1 THEN severity_list
+    WHEN severity_count = 2 THEN REPLACE(severity_list, ', ', ' and ')
+    ELSE REGEXP_REPLACE(severity_list, ',([^,]+)$', ', and \\1')
+  END AS SEVERITY_SELECTION
 FROM
-    crashes.crashes
-WHERE
-    MODE IN ${inputs.multi_mode_dd.value}
-    AND SEVERITY IN ${inputs.multi_severity.value};
+  mode_agg_cte,
+  severity_agg_cte,
+  total_modes_cte;
 ```
 
 <DateRange
@@ -236,7 +295,6 @@ WHERE
           }).format(twoDaysAgo);
         })()
   }
-  title="Select Time Period"
   name="date_range"
   presetRanges={['Last 7 Days', 'Last 30 Days', 'Last 90 Days', 'Last 6 Months', 'Last 12 Months', 'Month to Today', 'Last Month', 'Year to Today', 'Last Year']}
   defaultValue="Year to Today"
@@ -247,7 +305,7 @@ WHERE
     data={unique_severity} 
     name=multi_severity
     value=SEVERITY
-    title="Select Severity"
+    title="Severity"
     multiple=true
     defaultValue={['Fatal', 'Major']}
 />
@@ -256,7 +314,7 @@ WHERE
     data={unique_mode} 
     name=multi_mode_dd
     value=MODE
-    title="Select Road User"
+    title="Road User"
     multiple=true
     selectAllByDefault=true
     description="*Only fatal"
@@ -266,7 +324,7 @@ WHERE
     data={age_range} 
     name=min_age
     value=age_int
-    title="Select Min Age" 
+    title="Min Age" 
     defaultValue={0}
 />
 
@@ -274,39 +332,37 @@ WHERE
     data={age_range} 
     name="max_age"
     value=age_int
-    title="Select Max Age"
+    title="Max Age"
     order="age_int desc"
     defaultValue={120}
     description='Age 120 serves as a placeholder for missing age values in the records. However, missing values will be automatically excluded from the query if the default 0-120 range is changed by the user. To get a count of missing age values, go to the "Age Distribution" page.'
 />
 
-<Alert status="info">
-The selection for <b>Severity</b> is: <b><Value data={mode_severity_selection} column="SEVERITY_SELECTION"/></b>. The selection for <b>Road User</b> is: <b><Value data={mode_severity_selection} column="MODE_SELECTION"/></b> <Info description="*Fatal only." color="primary" />
-</Alert>
-
-<Note>
-    Select an ANC to zoom in and see more details about the injuries resulting from a crash within its SMDs.
-</Note>
 <Grid cols=2>
     <Group>
+        <div style="font-size: 14px;">
+            <b>{`${mode_severity_selection[0].SEVERITY_SELECTION}`} Injuries for {`${mode_severity_selection[0].MODE_SELECTION}`} by ANC ({`${period_comp_anc[0].current_period_range}`})</b>
+        </div>
+        <Note>
+            Select an ANC to zoom in and see more details about the injuries resulting from a crash within its SMDs.
+        </Note>
         <BaseMap
             height=450
             startingZoom=11
-            title="ANC"
         >
         <Areas data={unique_hin} geoJsonUrl='https://raw.githubusercontent.com/rafaelmorenoco/Crash-Injury-Dashboard-Frontend/main/static/High_Injury_Network.geojson' geoId=GIS_ID areaCol=GIS_ID borderColor=#9d00ff color=#1C00ff00 ignoreZoom=true
             tooltip={[
                 {id: 'ROUTENAME'}
             ]}
         />
-        <Areas data={anc_map} geoJsonUrl='https://raw.githubusercontent.com/rafaelmorenoco/Crash-Injury-Dashboard-Frontend/main/static/anc_2023.geojson' geoId=ANC areaCol=ANC value=Injuries link=link min=0 opacity=0.7 borderWidth=1 borderColor='#A9A9A9'/>
+        <Areas data={anc_map} geoJsonUrl='https://raw.githubusercontent.com/rafaelmorenoco/Crash-Injury-Dashboard-Frontend/main/static/anc_2023.geojson' geoId=ANC areaCol=ANC value=count link=link min=0 opacity=0.7 borderWidth=1 borderColor='#A9A9A9'/>
         </BaseMap>
         <Note>
             The purple lines represent DC's High Injury Network
         </Note>
     </Group>
     <Group>
-        <DataTable data={period_comp_anc} sort="current_period_sum desc" title="Selected Period Comparison" search=true wrapTitles=true rowShading=true link=link >
+        <DataTable data={period_comp_anc} sort="current_period_sum desc" title="Year Over Year Comparison of {mode_severity_selection[0].SEVERITY_SELECTION} Injuries for {mode_severity_selection[0].MODE_SELECTION} by ANC" search=true wrapTitles=true rowShading=true link=link >
             <Column id=ANC title="ANC"/>
             <Column id=current_period_sum title={`${period_comp_anc[0].current_period_range}`} />
             <Column id=prior_period_sum title={`${period_comp_anc[0].prior_period_range}`}  />

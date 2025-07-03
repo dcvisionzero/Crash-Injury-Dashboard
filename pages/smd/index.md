@@ -185,7 +185,7 @@ LEFT JOIN
 ```sql smd_map
 SELECT
     a.SMD,
-    COALESCE(SUM(c.COUNT), 0) AS Injuries,
+    COALESCE(SUM(c.COUNT), 0) AS count,
     '/Crash-Injury-Dashboard/smd/' || a.SMD AS link
 FROM smd.smd_2023 a
 LEFT JOIN crashes.crashes c 
@@ -334,23 +334,24 @@ FROM
     description='Age 120 serves as a placeholder for missing age values in the records. However, missing values will be automatically excluded from the query if the default 0-120 range is changed by the user. To get a count of missing age values, go to the "Age Distribution" page.'
 />
 
-<Note>
-   Select an SMD to zoom in and see details about crash-related injuries within that SMD.
-</Note>
-
 <Grid cols=2>
     <Group>
+        <div style="font-size: 14px;">
+            <b>{mode_severity_selection[0].SEVERITY_SELECTION} Injuries for {mode_severity_selection[0].MODE_SELECTION} by SMD ({period_comp_smd[0].current_period_range})</b>
+        </div>
+        <Note>
+            Select an SMD to zoom in and see details about crash-related injuries within that SMD.
+        </Note>
         <BaseMap
           height=450
           startingZoom=11
-          title="{`${mode_severity_selection[0].SEVERITY_SELECTION}`} Injuries for {`${mode_severity_selection[0].MODE_SELECTION}`} by SMD ({`${period_comp_smd[0].current_period_range}`})"
         >
         <Areas data={unique_hin} geoJsonUrl='https://raw.githubusercontent.com/rafaelmorenoco/Crash-Injury-Dashboard-Frontend/main/static/High_Injury_Network.geojson' geoId=GIS_ID areaCol=GIS_ID borderColor=#9d00ff color=#1C00ff00 ignoreZoom=true
             tooltip={[
                 {id: 'ROUTENAME'}
             ]}
         />
-        <Areas data={smd_map} geoJsonUrl='https://raw.githubusercontent.com/rafaelmorenoco/Crash-Injury-Dashboard-Frontend/main/static/smd_2023.geojson' geoId=SMD areaCol=SMD value=Injuries link=link min=0 opacity=0.7 borderWidth=1 borderColor='#A9A9A9'/>
+        <Areas data={smd_map} geoJsonUrl='https://raw.githubusercontent.com/rafaelmorenoco/Crash-Injury-Dashboard-Frontend/main/static/smd_2023.geojson' geoId=SMD areaCol=SMD value=count link=link min=0 opacity=0.7 borderWidth=1 borderColor='#A9A9A9'/>
         </BaseMap>
         <Note>
             The purple lines represent DC's High Injury Network

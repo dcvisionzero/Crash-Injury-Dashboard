@@ -46,6 +46,7 @@ SELECT
         WHEN CAST(AGE AS INTEGER) = 120 THEN '-'
         ELSE CAST(CAST(AGE AS INTEGER) AS VARCHAR)
     END AS Age,
+    CCN,
     SUM(COUNT) AS Count
 FROM crashes.crashes
 WHERE MODE IN ${inputs.multi_mode_dd.value}
@@ -67,6 +68,7 @@ GROUP BY
     MODE,
     SEVERITY,
     ADDRESS,
+    CCN,
     AGE;
 ```
 
@@ -146,7 +148,6 @@ WHERE
                 }).format(twoDaysAgo);
                 })()
         }
-        title="Select Time Period"
         name="date_range"
         presetRanges={['Last 7 Days', 'Last 30 Days', 'Last 90 Days', 'Last 6 Months', 'Last 12 Months', 'Month to Today', 'Last Month', 'Year to Today', 'Last Year', 'All Time']}
         defaultValue="Year to Today"
@@ -156,7 +157,7 @@ WHERE
             data={unique_severity} 
             name=multi_severity
             value=SEVERITY
-            title="Select Severity"
+            title="Severity"
             multiple=true
             defaultValue={["Major","Fatal"]}
         />
@@ -164,7 +165,7 @@ WHERE
             data={unique_mode} 
             name=multi_mode_dd
             value=MODE
-            title="Select Road User"
+            title="Road User"
             multiple=true
             selectAllByDefault=true
             description="*Only fatal"
@@ -173,7 +174,7 @@ WHERE
             data={age_range} 
             name=min_age
             value=age_int
-            title="Select Min Age" 
+            title="Min Age" 
             defaultValue={0}
         />
 
@@ -181,7 +182,7 @@ WHERE
             data={age_range} 
             name="max_age"
             value=age_int
-            title="Select Max Age"
+            title="Max Age"
             order="age_int desc"
             defaultValue={120}
             description='Age 120 serves as a placeholder for missing age values in the records. However, missing values will be automatically excluded from the query if the default 0-120 range is changed by the user. To get a count of missing age values, go to the "Age Distribution" page.'
@@ -225,10 +226,11 @@ The selection for <b>Severity</b> is: <b><Value data={mode_severity_selection} c
     <Group>
         <DataTable data={table_query} sort="REPORTDATE desc" totalRow=true rows=5 title='Injury Table' rowShading=true wrapTitles=true>
           <Column id=REPORTDATE title='Date' fmt='mm/dd/yy hh:mm' totalAgg="Total" wrap=true description="24-Hour Format"/>
+          <Column id=Count totalAgg=sum/>
           <Column id=mode_severity title='Road User - Severity' totalAgg="-" wrap=true/>
           <Column id=Age totalAgg="-"/>
           <Column id=ADDRESS title='Apporx Address' wrap=true/>
-          <Column id=Count totalAgg=sum/>
+          <Column id=CCN title="CCN" totalAgg="-"/>
         </DataTable>
         <Alert status="info">
             To navigate to another hexagon, go back to: <b><a href="https://crash-injury-dashboard.evidence.app/hexgrid/">Injuries Heatmap</a></b>.

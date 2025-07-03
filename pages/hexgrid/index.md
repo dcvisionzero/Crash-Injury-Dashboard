@@ -53,98 +53,96 @@ WITH reference AS (
             ('Sat', 6)
         ) AS dow(day_of_week, day_number),
         GENERATE_SERIES(0, 23) AS hr(hour_number)
-    ),
-    count_data AS (
-        SELECT
-            CASE
-                WHEN DATE_PART('dow', REPORTDATE) = 0 THEN 'Sun'
-                WHEN DATE_PART('dow', REPORTDATE) = 1 THEN 'Mon'
-                WHEN DATE_PART('dow', REPORTDATE) = 2 THEN 'Tue'
-                WHEN DATE_PART('dow', REPORTDATE) = 3 THEN 'Wed'
-                WHEN DATE_PART('dow', REPORTDATE) = 4 THEN 'Thu'
-                WHEN DATE_PART('dow', REPORTDATE) = 5 THEN 'Fri'
-                WHEN DATE_PART('dow', REPORTDATE) = 6 THEN 'Sat'
-            END AS day_of_week,
-            CASE
-                WHEN DATE_PART('dow', REPORTDATE) = 1 THEN 0
-                WHEN DATE_PART('dow', REPORTDATE) = 2 THEN 1
-                WHEN DATE_PART('dow', REPORTDATE) = 3 THEN 2
-                WHEN DATE_PART('dow', REPORTDATE) = 4 THEN 3
-                WHEN DATE_PART('dow', REPORTDATE) = 5 THEN 4
-                WHEN DATE_PART('dow', REPORTDATE) = 6 THEN 5
-                WHEN DATE_PART('dow', REPORTDATE) = 0 THEN 6
-            END AS day_number,
-            LPAD(CAST(DATE_PART('hour', REPORTDATE) AS VARCHAR), 2, '0') AS hour_number,
-            SUM("COUNT") AS Injuries
-        FROM crashes.crashes
-        WHERE 
-            MODE IN ${inputs.multi_mode_dd.value}
-            AND SEVERITY IN ${inputs.multi_severity.value}
-            AND REPORTDATE BETWEEN ('${inputs.date_range.start}'::DATE) AND (('${inputs.date_range.end}'::DATE) + INTERVAL '1 day')
-            AND AGE BETWEEN ${inputs.min_age.value}
-                                AND (
-                                    CASE 
-                                        WHEN ${inputs.min_age.value} <> 0 
-                                        AND ${inputs.max_age.value} = 120
-                                        THEN 119
-                                        ELSE ${inputs.max_age.value}
-                                    END
-                                    )
-        GROUP BY 
-            day_of_week, day_number, hour_number
-    )
+),
+count_data AS (
+    SELECT
+        CASE
+            WHEN DATE_PART('dow', REPORTDATE) = 0 THEN 'Sun'
+            WHEN DATE_PART('dow', REPORTDATE) = 1 THEN 'Mon'
+            WHEN DATE_PART('dow', REPORTDATE) = 2 THEN 'Tue'
+            WHEN DATE_PART('dow', REPORTDATE) = 3 THEN 'Wed'
+            WHEN DATE_PART('dow', REPORTDATE) = 4 THEN 'Thu'
+            WHEN DATE_PART('dow', REPORTDATE) = 5 THEN 'Fri'
+            WHEN DATE_PART('dow', REPORTDATE) = 6 THEN 'Sat'
+        END AS day_of_week,
+        CASE
+            WHEN DATE_PART('dow', REPORTDATE) = 1 THEN 0
+            WHEN DATE_PART('dow', REPORTDATE) = 2 THEN 1
+            WHEN DATE_PART('dow', REPORTDATE) = 3 THEN 2
+            WHEN DATE_PART('dow', REPORTDATE) = 4 THEN 3
+            WHEN DATE_PART('dow', REPORTDATE) = 5 THEN 4
+            WHEN DATE_PART('dow', REPORTDATE) = 6 THEN 5
+            WHEN DATE_PART('dow', REPORTDATE) = 0 THEN 6
+        END AS day_number,
+        LPAD(CAST(DATE_PART('hour', REPORTDATE) AS VARCHAR), 2, '0') AS hour_number,
+        SUM("COUNT") AS "count"
+    FROM crashes.crashes
+    WHERE 
+        MODE       IN ${inputs.multi_mode_dd.value}
+        AND SEVERITY IN ${inputs.multi_severity.value}
+        AND REPORTDATE BETWEEN ('${inputs.date_range.start}'::DATE)
+                            AND (('${inputs.date_range.end}'::DATE) + INTERVAL '1 day')
+        AND AGE BETWEEN ${inputs.min_age.value}
+                    AND (
+                        CASE 
+                            WHEN ${inputs.min_age.value} <> 0 
+                                 AND ${inputs.max_age.value} = 120
+                            THEN 119
+                            ELSE ${inputs.max_age.value}
+                        END
+                    )
+    GROUP BY day_of_week, day_number, hour_number
+)
 SELECT
     r.day_of_week,
     r.day_number,
     LPAD(CAST(r.hour_number AS VARCHAR), 2, '0') AS hour_number,
-    COALESCE(cd.Injuries, 0) AS Injuries
+    COALESCE(cd."count", 0) AS "count"
 FROM reference r
 LEFT JOIN count_data cd
-    ON r.day_of_week = cd.day_of_week
-    AND LPAD(CAST(r.hour_number AS VARCHAR), 2, '0') = cd.hour_number
+  ON r.day_of_week = cd.day_of_week
+ AND LPAD(CAST(r.hour_number AS VARCHAR), 2, '0') = cd.hour_number
 ORDER BY r.day_number, r.hour_number;
 ```
 
 ```sql time
-WITH 
-reference AS (
+WITH reference AS (
     SELECT hr.hour_number
     FROM GENERATE_SERIES(0, 23) AS hr(hour_number)
 ),
 count_data AS (
     SELECT
         LPAD(CAST(DATE_PART('hour', REPORTDATE) AS VARCHAR), 2, '0') AS hour_number,
-        SUM("COUNT") AS Injuries
+        SUM("COUNT") AS "count"
     FROM crashes.crashes
     WHERE 
-        MODE IN ${inputs.multi_mode_dd.value}
+        MODE       IN ${inputs.multi_mode_dd.value}
         AND SEVERITY IN ${inputs.multi_severity.value}
-        AND REPORTDATE BETWEEN ('${inputs.date_range.start}'::DATE) 
-        AND (('${inputs.date_range.end}'::DATE) + INTERVAL '1 day')
+        AND REPORTDATE BETWEEN ('${inputs.date_range.start}'::DATE)
+                            AND (('${inputs.date_range.end}'::DATE) + INTERVAL '1 day')
         AND AGE BETWEEN ${inputs.min_age.value}
-                            AND (
-                                CASE 
-                                    WHEN ${inputs.min_age.value} <> 0 
-                                    AND ${inputs.max_age.value} = 120
-                                    THEN 119
-                                    ELSE ${inputs.max_age.value}
-                                END
-                                )
+                    AND (
+                        CASE 
+                            WHEN ${inputs.min_age.value} <> 0 
+                                 AND ${inputs.max_age.value} = 120
+                            THEN 119
+                            ELSE ${inputs.max_age.value}
+                        END
+                    )
     GROUP BY hour_number
 )
 SELECT
     'Total' AS Total,
     LPAD(CAST(r.hour_number AS VARCHAR), 2, '0') AS hour_number,
-    COALESCE(cd.Injuries, 0) AS Injuries
+    COALESCE(cd."count", 0) AS "count"
 FROM reference r
 LEFT JOIN count_data cd
-    ON LPAD(CAST(r.hour_number AS VARCHAR), 2, '0') = cd.hour_number
+  ON LPAD(CAST(r.hour_number AS VARCHAR), 2, '0') = cd.hour_number
 ORDER BY r.hour_number;
 ```
 
 ```sql day
-WITH
-reference AS (
+WITH reference AS (
     SELECT
         dow.day_of_week,
         dow.day_number,
@@ -180,31 +178,32 @@ count_data AS (
             WHEN DATE_PART('dow', REPORTDATE) = 6 THEN 5
             WHEN DATE_PART('dow', REPORTDATE) = 0 THEN 6
         END AS day_number,
-        SUM("COUNT") AS Injuries
+        SUM("COUNT") AS "count"
     FROM crashes.crashes
-    WHERE MODE IN ${inputs.multi_mode_dd.value}
-    AND SEVERITY IN ${inputs.multi_severity.value}
-    AND REPORTDATE BETWEEN ('${inputs.date_range.start}'::DATE) 
-    AND (('${inputs.date_range.end}'::DATE) + INTERVAL '1 day')
-    AND AGE BETWEEN ${inputs.min_age.value}
-                        AND (
-                            CASE 
-                                WHEN ${inputs.min_age.value} <> 0 
-                                AND ${inputs.max_age.value} = 120
-                                THEN 119
-                                ELSE ${inputs.max_age.value}
-                            END
-                            )
+    WHERE 
+        MODE       IN ${inputs.multi_mode_dd.value}
+        AND SEVERITY IN ${inputs.multi_severity.value}
+        AND REPORTDATE BETWEEN ('${inputs.date_range.start}'::DATE)
+                            AND (('${inputs.date_range.end}'::DATE) + INTERVAL '1 day')
+        AND AGE BETWEEN ${inputs.min_age.value}
+                    AND (
+                        CASE 
+                            WHEN ${inputs.min_age.value} <> 0 
+                                 AND ${inputs.max_age.value} = 120
+                            THEN 119
+                            ELSE ${inputs.max_age.value}
+                        END
+                    )
     GROUP BY day_of_week, day_number
 )
 SELECT
     r.day_of_week,
     r.day_number,
     r.total,
-    COALESCE(cd.Injuries, 0) AS Injuries
+    COALESCE(cd."count", 0) AS "count"
 FROM reference r
 LEFT JOIN count_data cd
-    ON r.day_of_week = cd.day_of_week
+  ON r.day_of_week = cd.day_of_week
 ORDER BY r.day_number;
 ```
 
@@ -436,115 +435,95 @@ FROM
         </Note>
     </Group>
     <Group>
-        <Heatmap 
-            data={day}
-            title="{`${mode_severity_selection[0].SEVERITY_SELECTION}`} Injuries for {`${mode_severity_selection[0].MODE_SELECTION}`} by Day of Week & Time of the Day"
-            subtitle=" "
-            x=day_of_week xSort=day_number
-            y=total
-            value=Injuries
-            legend=true
-            valueLabels=true
-            mobileValueLabels=true
-            chartAreaHeight=50
-            echartsOptions={{
-                tooltip: {
-                formatter: function (params) {
-                    const dayNames = {
-                    'Sun': 'Sunday',
-                    'Mon': 'Monday',
-                    'Tue': 'Tuesday',
-                    'Wed': 'Wednesday',
-                    'Thu': 'Thursday',
-                    'Fri': 'Friday',
-                    'Sat': 'Saturday'
-                    };
-                    // When using the Heatmap component, the data is usually transformed
-                    // into an array in the order specified by x, y, and value.
-                    // Given:
-                    //   x  → day_of_week  (index 0)
-                    //   y  → total        (index 1) – always "Total"
-                    //   value → Injuries   (index 2)
-                    // We can then extract the values like this:
-                    const dayAbbrev = params.value && Array.isArray(params.value)
-                    ? params.value[0]
-                    : params.data.day_of_week;
-                    const injuries =
-                    params.value && Array.isArray(params.value)
-                    ? params.value[2]
-                    : params.data.Injuries;
-                    return `<strong>${dayNames[dayAbbrev]}</strong><br>Injuries: ${injuries}`;
+        <div style="font-size: 14px;">
+            <b>{`${mode_severity_selection[0].SEVERITY_SELECTION}`} Injuries for {`${mode_severity_selection[0].MODE_SELECTION}`} by Day of Week & Time of the Day</b>
+        </div>
+        <Heatmap
+        data={day}
+        subtitle=" "
+        x="day_of_week" xSort="day_number"
+        y="total"
+        value="count"
+        legend={true}
+        valueLabels={true}
+        mobileValueLabels={true}
+        chartAreaHeight={50}
+        echartsOptions={{
+            tooltip: {
+            formatter: function (params) {
+                const dayNames = {
+                'Sun': 'Sunday','Mon': 'Monday','Tue': 'Tuesday',
+                'Wed': 'Wednesday','Thu': 'Thursday','Fri': 'Friday','Sat': 'Saturday'
+                };
+                let dayAbbrev, count;
+                if (params.value && Array.isArray(params.value)) {
+                dayAbbrev = params.value[0];
+                count      = params.value[2];
+                } else {
+                dayAbbrev = params.data.day_of_week;
+                count     = params.data.count;
                 }
-                }
-            }}
-        />   
-        <Heatmap 
-            data={day_time} 
-            subtitle="24-Hour Format"
-            x=hour_number xSort=hour_number
-            y=day_of_week ySort=day_number
-            value=Injuries
-            legend=true
-            filter=true
-            mobileValueLabels=true
-            echartsOptions={{
-                tooltip: {
-                formatter: function (params) {
-                    const dayNames = {
-                    'Sun': 'Sunday',
-                    'Mon': 'Monday',
-                    'Tue': 'Tuesday',
-                    'Wed': 'Wednesday',
-                    'Thu': 'Thursday',
-                    'Fri': 'Friday',
-                    'Sat': 'Saturday'
-                    };
-                    // When the data comes as an array:
-                    // index 0: hour_number, index 1: day_of_week, index 2: injuries
-                    let hour, dayAbbrev, injuries;
-                    if (params.value && Array.isArray(params.value)) {
-                    hour = params.value[0];
-                    dayAbbrev = params.value[1];
-                    injuries = params.value[2];
-                    } else {
-                    // Fall-back to object properties if needed
-                    hour = params.data.hour_number;
-                    dayAbbrev = params.data.day_of_week;
-                    injuries = params.data.Injuries;
-                    }
-                    return `<strong>${dayNames[dayAbbrev]}</strong><br><strong>${hour} hrs</strong><br>Injuries: ${injuries}`;
-                }
-                }
-            }}
+                return `<strong>${dayNames[dayAbbrev]}</strong><br>Count: ${count}`;
+            }
+            }
+        }}
         />
-        <Heatmap 
-            data={time} 
-            subtitle="24-Hour Format"
-            x=hour_number xSort=hour_number
-            y=Total
-            value=Injuries
-            legend=true
-            filter=true
-            chartAreaHeight=50
-            mobileValueLabels=true
-            echartsOptions={{
-                tooltip: {
-                formatter: function (params) {
-                    let hour, injuries;
-                    if (params.value && Array.isArray(params.value)) {
-                    // Assuming params.value is an array in the following order:
-                    // [hour_number, Total, Injuries]
-                    hour = params.value[0];
-                    injuries = params.value[2]; // skip index 1 ('Total')
-                    } else {
-                    // Fallback if data is provided as an object:
-                    hour = params.data.hour_number;
-                    injuries = params.data.Injuries;
-                    }
-                    return `<strong>${hour} hrs</strong><br>Injuries: ${injuries}`;
+        <Heatmap
+        data={day_time}
+        subtitle="24-Hour Format"
+        x="hour_number" xSort="hour_number"
+        y="day_of_week" ySort="day_number"
+        value="count"
+        legend={true}
+        filter={true}
+        mobileValueLabels={true}
+        echartsOptions={{
+            tooltip: {
+            formatter: function (params) {
+                const dayNames = {
+                'Sun': 'Sunday','Mon': 'Monday','Tue': 'Tuesday',
+                'Wed': 'Wednesday','Thu': 'Thursday','Fri': 'Friday','Sat': 'Saturday'
+                };
+                let hour, dayAbbrev, count;
+                if (params.value && Array.isArray(params.value)) {
+                hour      = params.value[0];
+                dayAbbrev = params.value[1];
+                count     = params.value[2];
+                } else {
+                hour      = params.data.hour_number;
+                dayAbbrev = params.data.day_of_week;
+                count     = params.data.count;
                 }
+                return `<strong>${dayNames[dayAbbrev]}</strong><br><strong>${hour} hrs</strong><br>Count: ${count}`;
+            }
+            }
+        }}
+        />
+        <Heatmap
+        data={time}
+        subtitle="24-Hour Format"
+        x="hour_number" xSort="hour_number"
+        y="Total"
+        value="count"
+        legend={true}
+        filter={true}
+        chartAreaHeight={50}
+        mobileValueLabels={true}
+        echartsOptions={{
+            tooltip: {
+            formatter: function (params) {
+                let hour, count;
+                if (params.value && Array.isArray(params.value)) {
+                hour  = params.value[0];
+                count = params.value[2];
+                } else {
+                hour  = params.data.hour_number;
+                count = params.data.count;
                 }
-            }}
+                return `<strong>${hour} hrs</strong><br>Count: ${count}`;
+            }
+            }
+        }}
         />
     </Group>
 </Grid>
