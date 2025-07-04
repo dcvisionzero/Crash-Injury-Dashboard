@@ -44,13 +44,13 @@ SELECT improvement,
     SUM(Count) AS count,
       CASE
     WHEN improvement = 'Leading Pedestrian Intervals (LPI)'
-      THEN 'https://raw.githubusercontent.com/rafaelmorenoco/Crash-Injury-Dashboard-Backend/main/Icons/LPI.png'
+      THEN 'https://raw.githubusercontent.com/rafaelmorenoco/Crash-Injury-Dashboard-Backend/main/Icons/LPI_2.png'
     WHEN improvement = 'Rectangular Rapid Flashing Beacon (RRFB)'
-      THEN 'https://raw.githubusercontent.com/rafaelmorenoco/Crash-Injury-Dashboard-Backend/main/Icons/RRFB.png'
+      THEN 'https://raw.githubusercontent.com/rafaelmorenoco/Crash-Injury-Dashboard-Backend/main/Icons/RRFB_2.png'
     WHEN improvement = 'Curb Extensions'
-      THEN 'https://cdn-icons-png.flaticon.com/128/19010/19010426.png'
-    WHEN improvement = '20 MPH Speed Limit Signs'
-      THEN 'https://cdn-icons-png.flaticon.com/128/19010/19010426.png'
+      THEN 'https://raw.githubusercontent.com/rafaelmorenoco/Crash-Injury-Dashboard-Backend/main/Icons/CE_2.png'
+    WHEN improvement = 'Annual Safety Improvement Program (ASAP)'
+      THEN 'https://raw.githubusercontent.com/rafaelmorenoco/Crash-Injury-Dashboard-Backend/main/Icons/ASAP.png'
     ELSE NULL
   END AS icon
 FROM interventions.interventions
