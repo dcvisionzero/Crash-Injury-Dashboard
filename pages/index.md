@@ -49,8 +49,8 @@ SELECT improvement,
       THEN 'https://raw.githubusercontent.com/rafaelmorenoco/Crash-Injury-Dashboard-Backend/main/Icons/RRFB_2.png'
     WHEN improvement = 'Curb Extensions'
       THEN 'https://raw.githubusercontent.com/rafaelmorenoco/Crash-Injury-Dashboard-Backend/main/Icons/CE_2.png'
-    WHEN improvement = 'Annual Safety Improvement Program (ASAP)'
-      THEN 'https://raw.githubusercontent.com/rafaelmorenoco/Crash-Injury-Dashboard-Backend/main/Icons/ASAP.png'
+    WHEN improvement = 'Annual Safety Improvement Program (ASAP) - Intersections'
+      THEN 'https://raw.githubusercontent.com/rafaelmorenoco/Crash-Injury-Dashboard-Backend/main/Icons/road-sign-left.png'
     ELSE NULL
   END AS icon
 FROM interventions.interventions
