@@ -173,38 +173,44 @@ ORDER BY
 
 ```sql age_comparison
 WITH 
-  -- Define the current period based on your inputs
+  -- 1. Compute the “true” end_date (+1 day) and start_date
   report_date_range AS (
     SELECT
       CASE 
-        WHEN '${inputs.date_range.end}'::DATE >= (SELECT CAST(MAX(REPORTDATE) AS DATE) FROM crashes.crashes)::DATE 
-          THEN (SELECT MAX(REPORTDATE) FROM crashes.crashes)::DATE + INTERVAL '1 day'
+        WHEN '${inputs.date_range.end}'::DATE 
+             >= (SELECT MAX(REPORTDATE)::DATE FROM crashes.crashes)
+        THEN (SELECT MAX(REPORTDATE)::DATE FROM crashes.crashes) + INTERVAL '1 day'
         ELSE '${inputs.date_range.end}'::DATE + INTERVAL '1 day'
       END AS end_date,
       '${inputs.date_range.start}'::DATE AS start_date
   ),
+
+  -- 2. Build a single label: YTD only if start=Jan 1 of the year AND end hits max data;
+  --    otherwise always “MM/DD/YY–MM/DD/YY”
   date_info AS (
     SELECT
       start_date,
       end_date,
-      CASE 
-        WHEN start_date = DATE_TRUNC('year', end_date)
-             AND '${inputs.date_range.end}'::DATE = (end_date::DATE - INTERVAL '1 day')
-          THEN EXTRACT(YEAR FROM end_date)::VARCHAR || ' YTD'
-        WHEN '${inputs.date_range.end}'::DATE > (end_date::DATE - INTERVAL '1 day')
-          THEN strftime(start_date, '%m/%d/%y') || '-' || strftime((end_date::DATE - INTERVAL '1 day'), '%m/%d/%y')
-        ELSE 
-          strftime(start_date, '%m/%d/%y') || '-' || strftime((end_date - INTERVAL '1 day'), '%m/%d/%y')
+      CASE
+        WHEN start_date = DATE_TRUNC('year', '${inputs.date_range.end}'::DATE)
+         AND '${inputs.date_range.end}'::DATE = (SELECT MAX(REPORTDATE)::DATE FROM crashes.crashes)
+        THEN EXTRACT(YEAR FROM '${inputs.date_range.end}'::DATE)::VARCHAR || ' YTD'
+        ELSE
+          strftime(start_date,            '%m/%d/%y')
+          || '-' ||
+          strftime(end_date - INTERVAL '1 day', '%m/%d/%y')
       END AS current_period_range,
       (end_date - start_date) AS date_range_days
     FROM report_date_range
   ),
+
+  -- 3. Figure out your “offset” to compare prior spans
   offset_period AS (
     SELECT
       start_date,
       end_date,
       CASE 
-        WHEN end_date > start_date + INTERVAL '5 year' THEN (SELECT 1/0) -- force error if more than 5 years
+        WHEN end_date > start_date + INTERVAL '5 year' THEN (SELECT 1/0)  -- guard: >5 yrs
         WHEN end_date > start_date + INTERVAL '4 year' THEN INTERVAL '5 year'
         WHEN end_date > start_date + INTERVAL '3 year' THEN INTERVAL '4 year'
         WHEN end_date > start_date + INTERVAL '2 year' THEN INTERVAL '3 year'
@@ -213,25 +219,30 @@ WITH
       END AS interval_offset
     FROM date_info
   ),
+
+  -- 4. Deduce the prior span’s start/end
   prior_date_info AS (
     SELECT
-      (SELECT start_date FROM date_info) - (SELECT interval_offset FROM offset_period) AS prior_start_date,
-      (SELECT end_date FROM date_info) - (SELECT interval_offset FROM offset_period) AS prior_end_date
+      (SELECT start_date      FROM date_info) - (SELECT interval_offset FROM offset_period) AS prior_start_date,
+      (SELECT end_date        FROM date_info) - (SELECT interval_offset FROM offset_period) AS prior_end_date
   ),
+
+  -- 5. Label that prior span with the same “YTD only-if” logic
   prior_date_label AS (
     SELECT
-      CASE 
+      CASE
         WHEN (SELECT start_date FROM date_info) = DATE_TRUNC('year', (SELECT end_date FROM date_info))
-          AND '${inputs.date_range.end}'::DATE = (SELECT CAST(MAX(REPORTDATE) AS DATE) FROM crashes.crashes)::DATE
-          THEN EXTRACT(YEAR FROM prior_end_date)::VARCHAR || ' YTD'
-        WHEN '${inputs.date_range.end}'::DATE > (SELECT CAST(MAX(REPORTDATE) AS DATE) FROM crashes.crashes)::DATE
-          THEN strftime(prior_start_date, '%m/%d/%y') || '-' || strftime((prior_end_date - INTERVAL '1 day'), '%m/%d/%y')
-        ELSE 
-          strftime(prior_start_date, '%m/%d/%y') || '-' || strftime((prior_end_date - INTERVAL '1 day'), '%m/%d/%y')
+         AND '${inputs.date_range.end}'::DATE = (SELECT MAX(REPORTDATE)::DATE FROM crashes.crashes)
+        THEN EXTRACT(YEAR FROM prior_end_date)::VARCHAR || ' YTD'
+        ELSE
+          strftime(prior_start_date,         '%m/%d/%y')
+          || '-' ||
+          strftime(prior_end_date - INTERVAL '1 day', '%m/%d/%y')
       END AS prior_period_range
     FROM prior_date_info
   ),
-  -- Define age buckets plus the special "Null" bucket
+
+  -- 6. Define your age‐buckets (0–10, 11–20, …, >80, Null)
   buckets(bucket_order, bucket_label, lower_bound, upper_bound) AS (
     VALUES
       (0,    '0-10',   0,   10),
@@ -252,7 +263,8 @@ WITH
     UNION ALL
     SELECT * FROM null_bucket
   ),
-  -- Get the aggregated injuries per bucket for the current period
+
+  -- 7. Aggregate current‐period injuries by bucket
   current_age AS (
     SELECT 
       ab.bucket_order,
@@ -265,20 +277,23 @@ WITH
            OR
            (ab.bucket_label <> 'Null' AND CAST(c.AGE AS INTEGER) BETWEEN ab.lower_bound AND ab.upper_bound)
          )
-         AND c.MODE IN ${inputs.multi_mode_dd.value}
-         AND c.SEVERITY IN ${inputs.multi_severity.value}
-         AND c.REPORTDATE >= (SELECT start_date FROM date_info)
-         AND c.REPORTDATE <= (SELECT end_date FROM date_info)
+         AND c.MODE       IN ${inputs.multi_mode_dd.value}
+         AND c.SEVERITY   IN ${inputs.multi_severity.value}
+         AND c.REPORTDATE BETWEEN (SELECT start_date FROM date_info)
+                              AND (SELECT end_date   FROM date_info)
          AND c.AGE BETWEEN ${inputs.min_age.value}
-                      AND (CASE 
-                             WHEN ${inputs.min_age.value} <> 0 
-                             AND ${inputs.max_age.value} = 120
-                             THEN 119
-                             ELSE ${inputs.max_age.value}
-                           END)
+                     AND (
+                       CASE 
+                         WHEN ${inputs.min_age.value} <> 0 
+                          AND ${inputs.max_age.value} = 120
+                         THEN 119
+                         ELSE ${inputs.max_age.value}
+                       END
+                     )
     GROUP BY ab.bucket_order, ab.bucket_label
   ),
-  -- Get the aggregated injuries per bucket for the prior period
+
+  -- 8. Aggregate prior‐period injuries by bucket
   prior_age AS (
     SELECT 
       ab.bucket_order,
@@ -291,21 +306,23 @@ WITH
            OR
            (ab.bucket_label <> 'Null' AND CAST(c.AGE AS INTEGER) BETWEEN ab.lower_bound AND ab.upper_bound)
          )
-         AND c.SEVERITY IN ${inputs.multi_severity.value}
-         AND c.MODE IN ${inputs.multi_mode_dd.value}
-         AND c.REPORTDATE >= ((SELECT start_date FROM date_info) - (SELECT interval_offset FROM offset_period))
-         AND c.REPORTDATE <= ((SELECT end_date FROM date_info) - (SELECT interval_offset FROM offset_period))
+         AND c.MODE       IN ${inputs.multi_mode_dd.value}
+         AND c.SEVERITY   IN ${inputs.multi_severity.value}
+         AND c.REPORTDATE BETWEEN (SELECT start_date     FROM date_info) - (SELECT interval_offset FROM offset_period)
+                              AND (SELECT end_date       FROM date_info) - (SELECT interval_offset FROM offset_period)
          AND c.AGE BETWEEN ${inputs.min_age.value}
-                      AND (CASE 
-                             WHEN ${inputs.min_age.value} <> 0 
-                             AND ${inputs.max_age.value} = 120
-                             THEN 119
-                             ELSE ${inputs.max_age.value}
-                           END)
+                     AND (
+                       CASE 
+                         WHEN ${inputs.min_age.value} <> 0 
+                          AND ${inputs.max_age.value} = 120
+                         THEN 119
+                         ELSE ${inputs.max_age.value}
+                       END
+                     )
     GROUP BY ab.bucket_order, ab.bucket_label
   )
-  
--- Combine the results from both periods
+
+-- 9. Union current/prior, attach the correct period label, and sort
 SELECT 
   bucket_label,
   Injuries,
@@ -317,7 +334,9 @@ FROM (
     ca.Injuries,
     (SELECT current_period_range FROM date_info) AS Period_range
   FROM current_age ca
+
   UNION ALL
+
   SELECT 
     pa.bucket_order,
     pa.bucket_label,
@@ -326,6 +345,7 @@ FROM (
   FROM prior_age pa
 ) AS combined
 ORDER BY bucket_order, Period_range;
+
 ```
 
 ```sql mode_severity_selection
@@ -457,7 +477,7 @@ FROM
 <Grid cols=2>
     <Group>
         <div style="font-size: 14px;">
-            <b>Age Distribution of {mode_severity_selection[0].MODE_SELECTION} by Injury Severity ({age_comparison[0].Period_range})</b>
+            <b>Age Distribution of {mode_severity_selection[0].MODE_SELECTION} by Injury Severity ({age_comparison[1].Period_range})</b>
         </div>
         <BarChart 
             data={age_severity}
@@ -478,7 +498,7 @@ FROM
     </Group>
     <Group>
         <div style="font-size: 14px;">
-            <b>Age Distribution of {mode_severity_selection[0].MODE_SELECTION} ({age_comparison[0].Period_range})</b>
+            <b>Age Distribution of {mode_severity_selection[0].MODE_SELECTION} ({age_comparison[1].Period_range})</b>
         </div>
         <BarChart 
             data={age_mode}

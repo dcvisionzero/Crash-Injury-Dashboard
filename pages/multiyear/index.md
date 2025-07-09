@@ -177,7 +177,7 @@ WITH
           '('
           || strftime(current_start_date, '%m/%d')
           || '-'
-          || strftime(current_end_date,   '%m/%d')
+          || strftime(current_end_date - INTERVAL '1 day',   '%m/%d')
           || ')'
       END                   AS date_range_label,
 
