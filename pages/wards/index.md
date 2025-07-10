@@ -31,7 +31,13 @@ group by all
 ```sql unique_hin
 select 
     GIS_ID,
-    ROUTENAME
+    ROUTENAME,
+    CASE
+        WHEN TIER_1 = 1 THEN '1'
+        WHEN TIER_2 = 1 THEN '2'
+        WHEN TIER_3 = 1 THEN '3'
+        ELSE NULL
+    END AS Tier
 from hin.hin
 group by all
 ```
@@ -351,7 +357,8 @@ FROM
         >
         <Areas data={unique_hin} geoJsonUrl='https://raw.githubusercontent.com/rafaelmorenoco/Crash-Injury-Dashboard-Frontend/main/static/High_Injury_Network.geojson' geoId=GIS_ID areaCol=GIS_ID borderColor=#9d00ff color=#1C00ff00 ignoreZoom=true
             tooltip={[
-                {id: 'ROUTENAME'}
+                {id: 'ROUTENAME'},
+                {id: 'Tier'}
             ]}
         />
         <Areas data={ward_map} geoJsonUrl='https://raw.githubusercontent.com/rafaelmorenoco/Crash-Injury-Dashboard-Frontend/main/static/Wards_from_2022.geojson' geoId=WARD_ID areaCol=WARD value=count min=0 opacity=0.7 borderWidth=1 borderColor='#A9A9A9'

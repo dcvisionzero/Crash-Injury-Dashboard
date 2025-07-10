@@ -255,6 +255,26 @@ LEFT JOIN prior_period pp ON mas.SMD = pp.SMD
 CROSS JOIN totals;
 ```
 
+```sql interventions_table
+SELECT improvement, 
+    'https://visionzero.dc.gov/pages/engineering#safety' AS link,
+    SUM(Count) AS count,
+      CASE
+    WHEN improvement = 'Leading Pedestrian Intervals (LPI)'
+      THEN 'https://raw.githubusercontent.com/rafaelmorenoco/Crash-Injury-Dashboard-Backend/main/Icons/LPI_2.png'
+    WHEN improvement = 'Rectangular Rapid Flashing Beacon (RRFB)'
+      THEN 'https://raw.githubusercontent.com/rafaelmorenoco/Crash-Injury-Dashboard-Backend/main/Icons/RRFB_2.png'
+    WHEN improvement = 'Curb Extensions'
+      THEN 'https://raw.githubusercontent.com/rafaelmorenoco/Crash-Injury-Dashboard-Backend/main/Icons/CE_2.png'
+    WHEN improvement = 'Annual Safety Improvement Program (ASAP) - Intersections'
+      THEN 'https://raw.githubusercontent.com/rafaelmorenoco/Crash-Injury-Dashboard-Backend/main/Icons/intersection.png'
+    ELSE NULL
+  END AS icon
+FROM interventions.interventions
+WHERE ANC = '${params.ANC}'
+GROUP BY improvement;
+```
+
 ```sql mode_severity_selection
 WITH
   -- 1. Get the total number of unique modes in the entire table
@@ -412,8 +432,14 @@ FROM
             <Column id=difference title="Diff" contentType=delta downIsGood=True />
             <Column id=percentage_change fmt='pct0' title="% Diff" totalAgg={period_comp_smd[0].total_percentage_change} totalFmt='pct0'/> 
         </DataTable>
-        <Note>
-            The latest crash record in the dataset is from <Value data={last_record} column="latest_record"/> and the data was last updated on <Value data={last_record} column="latest_update"/> hrs. This lag factors into prior period comparisons. The maximum comparison period is 5 years.
-        </Note>
+        <DataTable data={interventions_table} wrapTitles=true rowShading=true title="Roadway Safety Interventions" subtitle="Select any roadway intervention to learn more" link=link>
+            <Column id=improvement wrap=true title="Intervention"/>
+            <Column id=icon title=' ' contentType=image height=22px align=center />
+            <Column id=count/>
+        </DataTable>
     </Group>
 </Grid>
+
+<Note>
+    The latest crash record in the dataset is from <Value data={last_record} column="latest_record"/> and the data was last updated on <Value data={last_record} column="latest_update"/> hrs. This lag factors into prior period comparisons. The maximum comparison period is 5 years.
+</Note>

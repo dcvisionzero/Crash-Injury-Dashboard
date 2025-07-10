@@ -38,7 +38,7 @@ from hin.hin
 group by all
 ```
 
-```sql indicators
+```sql interventions_table
 SELECT improvement, 
     'https://visionzero.dc.gov/pages/engineering#safety' AS link,
     SUM(Count) AS count,
@@ -50,7 +50,7 @@ SELECT improvement,
     WHEN improvement = 'Curb Extensions'
       THEN 'https://raw.githubusercontent.com/rafaelmorenoco/Crash-Injury-Dashboard-Backend/main/Icons/CE_2.png'
     WHEN improvement = 'Annual Safety Improvement Program (ASAP) - Intersections'
-      THEN 'https://raw.githubusercontent.com/rafaelmorenoco/Crash-Injury-Dashboard-Backend/main/Icons/road-sign-left.png'
+      THEN 'https://raw.githubusercontent.com/rafaelmorenoco/Crash-Injury-Dashboard-Backend/main/Icons/intersection.png'
     ELSE NULL
   END AS icon
 FROM interventions.interventions
@@ -958,7 +958,7 @@ echartsOptions={{animation: false}}
             downloadableImage=false
             leftPadding={10}
         /> 
-        <DataTable data={indicators} wrapTitles=true rowShading=true title="Roadway Safety Interventions" subtitle="Select any roadway intervention to learn more" link=link>
+        <DataTable data={interventions_table} wrapTitles=true rowShading=true title="Roadway Safety Interventions" subtitle="Select any roadway intervention to learn more" link=link>
             <Column id=improvement wrap=true title="Intervention"/>
             <Column id=icon title=' ' contentType=image height=22px align=center />
             <Column id=count/>
