@@ -1014,7 +1014,7 @@ echartsOptions={{animation: false}}
       <tr>
         <td><img src="https://raw.githubusercontent.com/rafaelmorenoco/Crash-Injury-Dashboard-Backend/main/Icons/unknown.png" alt="Other Icon" width="32"></td>
         <td>Other</td>
-        <td>Includes motor-driven cycles (commonly referred to as mopeds and motorcycles), as well as personal mobility devices such as standing scooters, bus occupants, truck occupants, and others, including unknown classifications.</td>
+        <td>Includes motor-driven cycles (commonly referred to as mopeds and motorcycles), as well as personal mobility devices such as standing scooters, and others, including unknown classifications.</td>
       </tr>
     </tbody>
   </table>
