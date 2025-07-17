@@ -958,11 +958,19 @@ echartsOptions={{animation: false}}
             downloadableImage=false
             leftPadding={10}
         /> 
-        <DataTable data={interventions_table} wrapTitles=true rowShading=true title="Roadway Safety Interventions" subtitle="Select any roadway intervention to learn more" link=link>
-            <Column id=improvement wrap=true title="Intervention"/>
-            <Column id=icon title=' ' contentType=image height=22px align=center />
-            <Column id=count/>
-        </DataTable>
+        <Alert status="positive">
+        <div markdown style="font-size: 14px;">
+
+            Through Vision Zero, DDOT uses crash injury data to target engineering fixes—protected bike lanes, curb extensions, median islands, leading pedestrian intervals, and upgraded signals—that slow speeds, shorten crossings, and carve safe spaces for all road users. Learn more: [Engineering for Safety](https://visionzero.dc.gov/pages/engineering).
+        
+        </div>
+
+        <div markdown style="font-size: 14px;">
+
+            Similarly, DDOT’s projects and programs intentionally align with the city’s Vision Zero goals through safety-focused planning, design, construction, and maintenance of transportation improvements—big and small—across all eight wards. Learn more: [Projects and Programs](https://ddot.dc.gov/page/projects-and-programs).
+
+        </div>
+        </Alert>
     </Group>
 </Grid>
 
