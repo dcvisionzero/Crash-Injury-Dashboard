@@ -61,7 +61,10 @@ group by all
   UNION ALL
 
   SELECT 'Age', 
-        CAST(CAST(replace(AGE, '*', '') AS INTEGER) AS VARCHAR) AS AGE
+    CASE
+        WHEN CAST(AGE AS INTEGER) = 120 THEN '-'
+        ELSE CAST(CAST(AGE AS INTEGER) AS VARCHAR)
+    END AS AGE
   FROM crashes.crashes
   WHERE OBJECTID = '${params.OBJECTID}'
 
