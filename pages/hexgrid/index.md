@@ -427,8 +427,7 @@ FROM
             <Areas data={unique_hin} geoJsonUrl='https://raw.githubusercontent.com/rafaelmorenoco/Crash-Injury-Dashboard-Frontend/main/static/High_Injury_Network.geojson' geoId=GIS_ID areaCol=GIS_ID borderColor=#9d00ff color=#1C00ff00/ ignoreZoom=true 
             tooltip={[
                 {id: 'ROUTENAME'}
-            ]}
-            />
+            ]} />
         </BaseMap>
         <Note>
         The purple lines represent DC's High Injury Network  

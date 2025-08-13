@@ -477,7 +477,7 @@ FROM
 <Grid cols=2>
     <Group>
         <div style="font-size: 14px;">
-            <b>Age Distribution of {mode_severity_selection[0].MODE_SELECTION} by Injury Severity ({age_comparison[1].Period_range})</b>
+            <b>Age Distribution of {mode_severity_selection[0].MODE_SELECTION} by {`${mode_severity_selection[0].SEVERITY_SELECTION}`} Injuries ({age_comparison[1].Period_range})</b>
         </div>
         <BarChart 
             data={age_severity}
@@ -498,7 +498,7 @@ FROM
     </Group>
     <Group>
         <div style="font-size: 14px;">
-            <b>Age Distribution of {mode_severity_selection[0].MODE_SELECTION} ({age_comparison[1].Period_range})</b>
+            <b>Age Distribution of {mode_severity_selection[0].MODE_SELECTION} by {`${mode_severity_selection[0].SEVERITY_SELECTION}`} Injuries ({age_comparison[1].Period_range})</b>
         </div>
         <BarChart 
             data={age_mode}

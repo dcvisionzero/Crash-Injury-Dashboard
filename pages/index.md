@@ -961,7 +961,17 @@ echartsOptions={{animation: false}}
         <Alert status="positive">
         <div markdown style="font-size: 14px;">
 
-        Vision Zero uses a <b>Safe System Approach</b> to eliminate roadway deaths and injuries by ensuring <b>safe users</b>, <b>safe streets</b>, <b>safe vehicles</b>, <b>safe speeds</b>, and <b>post-crash care</b>. The District Government has an <b>all-hands-on-deck approach</b>, with five key agencies involved including the District Department of Transportation (DDOT), the Metropolitan Police Department (MPD), the Department of Public Works (DPW), Department of Motor Vehicles (DMV), and Department of For-Hire Vehicles (DFHV) and another 25 agencies with some role to play. Learn more: [2022 Update](https://visionzero.dc.gov/pages/2022-update).
+        The District uses the Safe System Approach to eliminate roadway deaths and serious injuries, focusing on safe people, safe streets, safe vehicles, safe speeds, and post-crash care. Many District agencies have roles to play. Learn more: [2022 Update](https://visionzero.dc.gov/pages/2022-update).
+
+        </div>
+        <div markdown style="font-size: 14px;">
+
+        Additionally, DDOT uses crash injury data to target engineering fixes that slow speeds, shorten crossings, and carve out safe spaces for all road users. Learn more: [Engineering for Safety](https://visionzero.dc.gov/pages/engineering).
+
+        </div>
+        <div markdown style="font-size: 14px;">
+
+        Similarly, DDOT intentionally aligns with Vision Zero goals through safety-focused projects across all eight wards. Learn more: [Projects and Programs](https://ddot.dc.gov/page/projects-and-programs).
 
         </div>
         </Alert>

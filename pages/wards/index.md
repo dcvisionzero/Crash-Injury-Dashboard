@@ -255,23 +255,34 @@ WITH
   -- 3. Aggregate severities based on the INTERSECTION of both inputs
   severity_agg_cte AS (
     SELECT
-      STRING_AGG(
-        DISTINCT SEVERITY,
-        ', '
-        ORDER BY
-          CASE SEVERITY
-            WHEN 'Minor' THEN 1
-            WHEN 'Major' THEN 2
-            WHEN 'Fatal' THEN 3
-          END
-      ) AS severity_list,
-      COUNT(DISTINCT SEVERITY) AS severity_count
+        COUNT(DISTINCT SEVERITY) AS severity_count,
+        CASE
+        WHEN COUNT(DISTINCT SEVERITY) = 0 THEN ' '
+        WHEN BOOL_AND(SEVERITY IN ('Fatal')) THEN 'Fatalities'
+        WHEN BOOL_AND(SEVERITY IN ('Major', 'Fatal')) AND COUNT(DISTINCT SEVERITY) = 2 THEN 'Major Injuries and Fatalities'
+        WHEN BOOL_AND(SEVERITY IN ('Minor', 'Major')) AND COUNT(DISTINCT SEVERITY) = 2 THEN 'Minor and Major Injuries'
+        WHEN BOOL_AND(SEVERITY IN ('Minor', 'Major', 'Fatal')) AND COUNT(DISTINCT SEVERITY) = 3 THEN 'Minor and Major Injuries, Fatalities'
+        ELSE STRING_AGG(
+            DISTINCT CASE
+            WHEN SEVERITY = 'Fatal' THEN 'Fatalities'
+            WHEN SEVERITY = 'Major' THEN 'Major Injuries'
+            WHEN SEVERITY = 'Minor' THEN 'Minor Injuries'
+            END,
+            ', '
+            ORDER BY
+            CASE SEVERITY
+                WHEN 'Minor' THEN 1
+                WHEN 'Major' THEN 2
+                WHEN 'Fatal' THEN 3
+            END
+        )
+        END AS severity_list
     FROM
-      crashes.crashes
+        crashes.crashes
     WHERE
-      MODE IN ${inputs.multi_mode_dd.value}
-      AND SEVERITY IN ${inputs.multi_severity.value}
-  )
+        MODE IN ${inputs.multi_mode_dd.value}
+        AND SEVERITY IN ${inputs.multi_severity.value}
+    )
 -- 4. Combine results and apply final formatting logic to each column
 SELECT
   CASE
@@ -286,7 +297,7 @@ SELECT
     WHEN severity_count = 1 THEN severity_list
     WHEN severity_count = 2 THEN REPLACE(severity_list, ', ', ' and ')
     ELSE REGEXP_REPLACE(severity_list, ',([^,]+)$', ', and \\1')
-  END AS SEVERITY_SELECTION
+    END AS SEVERITY_SELECTION
 FROM
   mode_agg_cte,
   severity_agg_cte,
@@ -353,7 +364,7 @@ FROM
         <BaseMap
             height=450
             startingZoom=11
-            title="{`${mode_severity_selection[0].SEVERITY_SELECTION}`} Injuries for {`${mode_severity_selection[0].MODE_SELECTION}`} by Ward ({`${period_comp_ward[0].current_period_range}`})"
+            title="{`${mode_severity_selection[0].SEVERITY_SELECTION}`} for {`${mode_severity_selection[0].MODE_SELECTION}`} by Ward ({`${period_comp_ward[0].current_period_range}`})"
         >
         <Areas data={unique_hin} geoJsonUrl='https://raw.githubusercontent.com/rafaelmorenoco/Crash-Injury-Dashboard-Frontend/main/static/High_Injury_Network.geojson' geoId=GIS_ID areaCol=GIS_ID borderColor=#9d00ff color=#1C00ff00 ignoreZoom=true
             tooltip={[
@@ -373,7 +384,7 @@ FROM
         </Note>
     </Group>
     <Group>
-        <DataTable data={period_comp_ward} sort="current_period_sum desc" title="Year Over Year Comparison of {`${mode_severity_selection[0].SEVERITY_SELECTION}`} Injuries for {`${mode_severity_selection[0].MODE_SELECTION}`} by Ward" totalRow=true wrapTitles=true rowShading=true>
+        <DataTable data={period_comp_ward} sort="current_period_sum desc" title="Year Over Year Comparison of {`${mode_severity_selection[0].SEVERITY_SELECTION}`} for {`${mode_severity_selection[0].MODE_SELECTION}`} by Ward" totalRow=true wrapTitles=true rowShading=true>
             <Column id=WARD title="Ward" totalAgg="Total"/>
             <Column id=current_period_sum title={`${period_comp_ward[0].current_period_range}`} />
             <Column id=prior_period_sum title={`${period_comp_ward[0].prior_period_range}`}  />
