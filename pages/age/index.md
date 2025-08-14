@@ -36,68 +36,96 @@ WHERE SEVERITY IN ${inputs.multi_severity.value}
 
 ```sql age_severity
 WITH buckets(bucket_order, bucket_label, lower_bound, upper_bound) AS (
-    VALUES
-        (0,    '0-10',   0,   10),
-        (11,   '11-20',  11,  20),
-        (21,   '21-30',  21,  30),
-        (31,   '31-40',  31,  40),
-        (41,   '41-50',  41,  50),
-        (51,   '51-60',  51,  60),
-        (61,   '61-70',  61,  70),
-        (71,   '71-80',  71,  80),
-        (81,   '> 80',   81,  110)
+  VALUES
+    (0,    '0-10',   0,   10),
+    (11,   '11-20',  11,  20),
+    (21,   '21-30',  21,  30),
+    (31,   '31-40',  31,  40),
+    (41,   '41-50',  41,  50),
+    (51,   '51-60',  51,  60),
+    (61,   '61-70',  61,  70),
+    (71,   '71-80',  71,  80),
+    (81,   '> 80',   81,  110)
 ),
 null_bucket AS (
-    SELECT 9999 AS bucket_order, 'Null' AS bucket_label, 120 AS lower_bound, 120 AS upper_bound
+  SELECT 9999 AS bucket_order, 'Null' AS bucket_label, 120 AS lower_bound, 120 AS upper_bound
 ),
 all_buckets AS (
-    SELECT * FROM buckets
-    UNION ALL
-    SELECT * FROM null_bucket
+  SELECT * FROM buckets
+  UNION ALL
+  SELECT * FROM null_bucket
 ),
-binned_data AS (
-    SELECT
-        ab.bucket_order,
-        ab.bucket_label,
-        c.SEVERITY,
-        COALESCE(SUM(c.COUNT), 0) AS Injuries
-    FROM all_buckets ab
-    LEFT JOIN crashes.crashes c 
-      ON (
-            -- For the Null bucket, match records where AGE equals 120 exactly
-            (ab.bucket_label = 'Null' AND CAST(c.AGE AS INTEGER) = ab.lower_bound)
-            OR
-            -- For all other buckets, match where AGE falls between the bucket's lower and upper bounds
-            (ab.bucket_label <> 'Null' AND CAST(c.AGE AS INTEGER) BETWEEN ab.lower_bound AND ab.upper_bound)
-         )
-         AND c.MODE IN ${inputs.multi_mode_dd.value}
-         AND c.SEVERITY IN ${inputs.multi_severity.value}
-         AND c.REPORTDATE BETWEEN ('${inputs.date_range.start}'::DATE)
-                              AND (('${inputs.date_range.end}'::DATE) + INTERVAL '1 day')
-         AND c.AGE BETWEEN ${inputs.min_age.value}
-                        AND (
-                            CASE 
-                                WHEN ${inputs.min_age.value} <> 0 
-                                AND ${inputs.max_age.value} = 120
-                                THEN 119
-                                ELSE ${inputs.max_age.value}
-                            END
-                        )
-    GROUP BY ab.bucket_order, ab.bucket_label, c.SEVERITY
+severity_list AS (
+  -- Remove parentheses & quotes, split on comma, then UNNEST
+  SELECT
+    TRIM(val) AS severity
+  FROM UNNEST(
+    string_split(
+      REPLACE(
+        TRIM(BOTH '()' FROM ${inputs.multi_severity.value}),
+        '''',''
+      ),
+      ','
+    )
+  ) AS t(val)
+),
+all_combinations AS (
+  SELECT
+    ab.bucket_order,
+    ab.bucket_label,
+    sl.severity
+  FROM all_buckets ab
+  CROSS JOIN severity_list sl
+),
+binned_raw AS (
+  SELECT
+    ab.bucket_order,
+    ab.bucket_label,
+    c.SEVERITY   AS severity,
+    SUM(c.COUNT) AS injuries
+  FROM all_buckets ab
+  LEFT JOIN crashes.crashes c
+    ON (
+         (ab.bucket_label = 'Null' AND CAST(c.AGE AS INTEGER) = ab.lower_bound)
+         OR
+         (ab.bucket_label <> 'Null' AND CAST(c.AGE AS INTEGER) BETWEEN ab.lower_bound AND ab.upper_bound)
+       )
+     AND c.MODE     IN ${inputs.multi_mode_dd.value}
+     AND c.SEVERITY IN ${inputs.multi_severity.value}
+     AND c.REPORTDATE BETWEEN '${inputs.date_range.start}'::DATE
+                          AND (('${inputs.date_range.end}'::DATE) + INTERVAL '1 day')
+     AND c.AGE BETWEEN ${inputs.min_age.value}
+                    AND (CASE 
+                           WHEN ${inputs.min_age.value} <> 0
+                            AND ${inputs.max_age.value}=120
+                           THEN 119 ELSE ${inputs.max_age.value}
+                         END)
+  GROUP BY ab.bucket_order, ab.bucket_label, c.SEVERITY
+),
+final AS (
+  SELECT
+    ac.bucket_order,
+    ac.bucket_label,
+    ac.severity,
+    COALESCE(br.injuries,0) AS Injuries
+  FROM all_combinations ac
+  LEFT JOIN binned_raw br
+    ON ac.bucket_order = br.bucket_order
+   AND ac.severity     = br.severity
 )
 SELECT
-    bucket_label,
-    SEVERITY,
-    Injuries
-FROM binned_data
-WHERE SEVERITY IS NOT NULL
-ORDER BY 
-    bucket_order,
-    CASE 
-        WHEN SEVERITY = 'Minor' THEN 1
-        WHEN SEVERITY = 'Major' THEN 2
-        WHEN SEVERITY = 'Fatal' THEN 3
-    END;
+  bucket_label,
+  severity    AS SEVERITY,
+  Injuries
+FROM final
+ORDER BY
+  bucket_order,
+  CASE 
+    WHEN severity='Minor' THEN 1
+    WHEN severity='Major' THEN 2
+    WHEN severity='Fatal' THEN 3
+  END;
+
 ```
 
 ```sql age_mode
@@ -121,53 +149,89 @@ all_buckets AS (
     UNION ALL
     SELECT * FROM null_bucket
 ),
-binned_data AS (
+
+mode_list AS (
+    -- Strip parentheses & quotes, split the comma list, then UNNEST
+    SELECT
+        TRIM(val) AS mode
+    FROM UNNEST(
+        string_split(
+            REPLACE(
+                TRIM(BOTH '()' FROM ${inputs.multi_mode_dd.value}),
+                '''',''
+            ),
+            ','
+        )
+    ) AS t(val)
+),
+
+all_combinations AS (
+    -- Every bucket × every selected mode
     SELECT
         ab.bucket_order,
         ab.bucket_label,
-        c.MODE,
-        COALESCE(SUM(c.COUNT), 0) AS Injuries
+        ml.mode
     FROM all_buckets ab
-    LEFT JOIN crashes.crashes c 
+    CROSS JOIN mode_list ml
+),
+
+binned_raw AS (
+    -- Sum injuries per bucket × mode
+    SELECT
+        ab.bucket_order,
+        ab.bucket_label,
+        c.MODE         AS mode,
+        SUM(c.COUNT)   AS injuries
+    FROM all_buckets ab
+    LEFT JOIN crashes.crashes c
       ON (
-           -- For the Null bucket, match records where AGE equals 120 exactly
            (ab.bucket_label = 'Null' AND CAST(c.AGE AS INTEGER) = ab.lower_bound)
-           OR
-           -- For all other buckets, match where AGE falls between the bucket's lower and upper bounds
-           (ab.bucket_label <> 'Null' AND CAST(c.AGE AS INTEGER) BETWEEN ab.lower_bound AND ab.upper_bound)
+        OR (ab.bucket_label <> 'Null' AND CAST(c.AGE AS INTEGER) BETWEEN ab.lower_bound AND ab.upper_bound)
          )
-         AND c.MODE IN ${inputs.multi_mode_dd.value}
-         AND c.SEVERITY IN ${inputs.multi_severity.value}
-         AND c.REPORTDATE BETWEEN ('${inputs.date_range.start}'::DATE)
-                              AND (('${inputs.date_range.end}'::DATE) + INTERVAL '1 day')
-         AND c.AGE BETWEEN ${inputs.min_age.value}
-                        AND (
-                            CASE 
-                                WHEN ${inputs.min_age.value} <> 0 
-                                AND ${inputs.max_age.value} = 120
-                                THEN 119
-                                ELSE ${inputs.max_age.value}
-                            END
-                        )
+     AND c.MODE     IN ${inputs.multi_mode_dd.value}
+     AND c.SEVERITY IN ${inputs.multi_severity.value}
+     AND c.REPORTDATE BETWEEN '${inputs.date_range.start}'::DATE
+                          AND (('${inputs.date_range.end}'::DATE) + INTERVAL '1 day')
+     AND c.AGE BETWEEN ${inputs.min_age.value}
+                    AND (
+                      CASE 
+                        WHEN ${inputs.min_age.value} <> 0
+                         AND ${inputs.max_age.value} = 120
+                        THEN 119
+                        ELSE ${inputs.max_age.value}
+                      END
+                    )
     GROUP BY ab.bucket_order, ab.bucket_label, c.MODE
+),
+
+final AS (
+    -- Left-join to fill in zeroes for missing bucket × mode combos
+    SELECT
+        ac.bucket_order,
+        ac.bucket_label,
+        ac.mode        AS MODE,
+        COALESCE(br.injuries, 0) AS Injuries
+    FROM all_combinations ac
+    LEFT JOIN binned_raw br
+      ON ac.bucket_order = br.bucket_order
+     AND ac.mode         = br.mode
 )
+
 SELECT
     bucket_label,
     MODE,
     Injuries
-FROM binned_data
-WHERE MODE IS NOT NULL
-ORDER BY 
+FROM final
+ORDER BY
     bucket_order,
     CASE 
-        WHEN MODE = 'Pedestrian' THEN 1
-        WHEN MODE = 'Other' THEN 2
-        WHEN MODE = 'Bicyclist' THEN 3
-        WHEN MODE = 'Scooterist*' THEN 4
+        WHEN MODE = 'Pedestrian'    THEN 1
+        WHEN MODE = 'Other'         THEN 2
+        WHEN MODE = 'Bicyclist'     THEN 3
+        WHEN MODE = 'Scooterist*'   THEN 4
         WHEN MODE = 'Motorcyclist*' THEN 5
-        WHEN MODE = 'Passenger' THEN 6
-        WHEN MODE = 'Driver' THEN 7
-        ELSE 8  -- for any other cases, place them last
+        WHEN MODE = 'Passenger'     THEN 6
+        WHEN MODE = 'Driver'        THEN 7
     END;
 ```
 
@@ -380,23 +444,34 @@ WITH
   -- 3. Aggregate severities based on the INTERSECTION of both inputs
   severity_agg_cte AS (
     SELECT
-      STRING_AGG(
-        DISTINCT SEVERITY,
-        ', '
-        ORDER BY
-          CASE SEVERITY
-            WHEN 'Minor' THEN 1
-            WHEN 'Major' THEN 2
-            WHEN 'Fatal' THEN 3
-          END
-      ) AS severity_list,
-      COUNT(DISTINCT SEVERITY) AS severity_count
+        COUNT(DISTINCT SEVERITY) AS severity_count,
+        CASE
+        WHEN COUNT(DISTINCT SEVERITY) = 0 THEN ' '
+        WHEN BOOL_AND(SEVERITY IN ('Fatal')) THEN 'Fatalities'
+        WHEN BOOL_AND(SEVERITY IN ('Major', 'Fatal')) AND COUNT(DISTINCT SEVERITY) = 2 THEN 'Major Injuries and Fatalities'
+        WHEN BOOL_AND(SEVERITY IN ('Minor', 'Major')) AND COUNT(DISTINCT SEVERITY) = 2 THEN 'Minor and Major Injuries'
+        WHEN BOOL_AND(SEVERITY IN ('Minor', 'Major', 'Fatal')) AND COUNT(DISTINCT SEVERITY) = 3 THEN 'Minor and Major Injuries, Fatalities'
+        ELSE STRING_AGG(
+            DISTINCT CASE
+            WHEN SEVERITY = 'Fatal' THEN 'Fatalities'
+            WHEN SEVERITY = 'Major' THEN 'Major Injuries'
+            WHEN SEVERITY = 'Minor' THEN 'Minor Injuries'
+            END,
+            ', '
+            ORDER BY
+            CASE SEVERITY
+                WHEN 'Minor' THEN 1
+                WHEN 'Major' THEN 2
+                WHEN 'Fatal' THEN 3
+            END
+        )
+        END AS severity_list
     FROM
-      crashes.crashes
+        crashes.crashes
     WHERE
-      MODE IN ${inputs.multi_mode_dd.value}
-      AND SEVERITY IN ${inputs.multi_severity.value}
-  )
+        MODE IN ${inputs.multi_mode_dd.value}
+        AND SEVERITY IN ${inputs.multi_severity.value}
+    )
 -- 4. Combine results and apply final formatting logic to each column
 SELECT
   CASE
@@ -411,7 +486,7 @@ SELECT
     WHEN severity_count = 1 THEN severity_list
     WHEN severity_count = 2 THEN REPLACE(severity_list, ', ', ' and ')
     ELSE REGEXP_REPLACE(severity_list, ',([^,]+)$', ', and \\1')
-  END AS SEVERITY_SELECTION
+    END AS SEVERITY_SELECTION
 FROM
   mode_agg_cte,
   severity_agg_cte,
@@ -477,8 +552,7 @@ FROM
 <Grid cols=2>
     <Group>
         <div style="font-size: 14px;">
-            <b>Age Distribution of {mode_severity_selection[0].MODE_SELECTION} by {`${mode_severity_selection[0].SEVERITY_SELECTION}`} Injuries ({age_comparison[1].Period_range})</b>
-        </div>
+            <b>Age Breakdown of {`${mode_severity_selection[0].SEVERITY_SELECTION}`} for {mode_severity_selection[0].MODE_SELECTION} ({age_comparison[1].Period_range})</b>
         <BarChart 
             data={age_severity}
             chartAreaHeight=300
@@ -498,7 +572,7 @@ FROM
     </Group>
     <Group>
         <div style="font-size: 14px;">
-            <b>Age Distribution of {mode_severity_selection[0].MODE_SELECTION} by {`${mode_severity_selection[0].SEVERITY_SELECTION}`} Injuries ({age_comparison[1].Period_range})</b>
+            <b>Age Breakdown of {`${mode_severity_selection[0].SEVERITY_SELECTION}`} for {mode_severity_selection[0].MODE_SELECTION} ({age_comparison[1].Period_range})</b>
         </div>
         <BarChart 
             data={age_mode}
@@ -508,7 +582,7 @@ FROM
             labels={true} 
             yAxisTitle="Count" 
             series=MODE
-            seriesColors={{"Pedestrian": '#00FFD4',"Other": '#06DFC8',"Bicyclist": '#0BBFBC',"Scooterist*": '#119FB0',"Motorcyclist*": '#167FA3',"Passenger": '#1C5F97',"Driver": '#271F7F',"Unknown": '#213F8B'}}
+            seriesColors={{"Pedestrian": '#00FFD4',"Other": '#06DFC8',"Bicyclist": '#0BBFBC',"Scooterist*": '#119FB0',"Motorcyclist*": '#167FA3',"Passenger": '#1C5F97',"Driver": '#271F7F'}}
             xAxisLabels={true} 
             xTickMarks={true} 
             leftPadding={10} 
@@ -520,7 +594,7 @@ FROM
 </Grid>
 
 <div style="font-size: 14px;">
-    <b>Percentage Breakdown of {mode_severity_selection[0].SEVERITY_SELECTION} Injuries for {mode_severity_selection[0].MODE_SELECTION} by Age Group</b>
+    <b>Percentage Breakdown of {mode_severity_selection[0].SEVERITY_SELECTION} for {mode_severity_selection[0].MODE_SELECTION} by Age Group</b>
 </div>
 <BarChart 
     data={age_comparison}

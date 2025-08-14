@@ -78,23 +78,34 @@ WITH
   -- 3. Aggregate severities based on the INTERSECTION of both inputs
   severity_agg_cte AS (
     SELECT
-      STRING_AGG(
-        DISTINCT SEVERITY,
-        ', '
-        ORDER BY
-          CASE SEVERITY
-            WHEN 'Minor' THEN 1
-            WHEN 'Major' THEN 2
-            WHEN 'Fatal' THEN 3
-          END
-      ) AS severity_list,
-      COUNT(DISTINCT SEVERITY) AS severity_count
+        COUNT(DISTINCT SEVERITY) AS severity_count,
+        CASE
+        WHEN COUNT(DISTINCT SEVERITY) = 0 THEN ' '
+        WHEN BOOL_AND(SEVERITY IN ('Fatal')) THEN 'Fatalities'
+        WHEN BOOL_AND(SEVERITY IN ('Major', 'Fatal')) AND COUNT(DISTINCT SEVERITY) = 2 THEN 'Major Injuries and Fatalities'
+        WHEN BOOL_AND(SEVERITY IN ('Minor', 'Major')) AND COUNT(DISTINCT SEVERITY) = 2 THEN 'Minor and Major Injuries'
+        WHEN BOOL_AND(SEVERITY IN ('Minor', 'Major', 'Fatal')) AND COUNT(DISTINCT SEVERITY) = 3 THEN 'Minor and Major Injuries, Fatalities'
+        ELSE STRING_AGG(
+            DISTINCT CASE
+            WHEN SEVERITY = 'Fatal' THEN 'Fatalities'
+            WHEN SEVERITY = 'Major' THEN 'Major Injuries'
+            WHEN SEVERITY = 'Minor' THEN 'Minor Injuries'
+            END,
+            ', '
+            ORDER BY
+            CASE SEVERITY
+                WHEN 'Minor' THEN 1
+                WHEN 'Major' THEN 2
+                WHEN 'Fatal' THEN 3
+            END
+        )
+        END AS severity_list
     FROM
-      crashes.crashes
+        crashes.crashes
     WHERE
-      MODE IN ${inputs.multi_mode_dd.value}
-      AND SEVERITY IN ${inputs.multi_severity.value}
-  )
+        MODE IN ${inputs.multi_mode_dd.value}
+        AND SEVERITY IN ${inputs.multi_severity.value}
+    )
 -- 4. Combine results and apply final formatting logic to each column
 SELECT
   CASE
@@ -109,7 +120,7 @@ SELECT
     WHEN severity_count = 1 THEN severity_list
     WHEN severity_count = 2 THEN REPLACE(severity_list, ', ', ' and ')
     ELSE REGEXP_REPLACE(severity_list, ',([^,]+)$', ', and \\1')
-  END AS SEVERITY_SELECTION
+    END AS SEVERITY_SELECTION
 FROM
   mode_agg_cte,
   severity_agg_cte,
@@ -442,7 +453,7 @@ description="By default, there is a two-day lag after the latest update"
 <Grid cols=2>
     <Group>
         <div style="font-size: 14px;">
-            <b>Year {ytd_table[0].Date_Range} Comparison of {`${mode_severity_selection[0].SEVERITY_SELECTION}`} Injuries for {`${mode_severity_selection[0].MODE_SELECTION}`}</b>
+            <b>Year {ytd_table[0].Date_Range} Comparison of {`${mode_severity_selection[0].SEVERITY_SELECTION}`} for {`${mode_severity_selection[0].MODE_SELECTION}`}</b>
         </div>
         <BarChart 
           data={ytd_table}
@@ -468,7 +479,7 @@ description="By default, there is a two-day lag after the latest update"
         </BarChart>
     </Group>
     <Group>
-        <DataTable data={ytd_table} wrapTitles=true rowShading=true title="{ytd_table[0].Year} {ytd_table[0].Date_Range} vs Prior Years {ytd_table[0].Date_Range} Comparison of {`${mode_severity_selection[0].SEVERITY_SELECTION}`} Injuries for {`${mode_severity_selection[0].MODE_SELECTION}`}">
+        <DataTable data={ytd_table} wrapTitles=true rowShading=true title="{ytd_table[0].Year} {ytd_table[0].Date_Range} vs Prior Years {ytd_table[0].Date_Range} Comparison of {`${mode_severity_selection[0].SEVERITY_SELECTION}`} for {`${mode_severity_selection[0].MODE_SELECTION}`}">
             <Column id=Year wrap=true/>
             <Column id=Count/>
             <Column id=Diff_from_current contentType=delta downIsGood=True title=" {ytd_table[0].Year} Diff"/>
@@ -515,7 +526,7 @@ end={
 <Grid cols=2>
     <Group>
         <div style="font-size: 14px;">
-            <b>Calendar Year ({cy_table[0].Date_Range}) Comparison of {`${mode_severity_selection[0].SEVERITY_SELECTION}`} Injuries for {`${mode_severity_selection[0].MODE_SELECTION}`}</b>
+            <b>Calendar Year ({cy_table[0].Date_Range}) Comparison of {`${mode_severity_selection[0].SEVERITY_SELECTION}`} for {`${mode_severity_selection[0].MODE_SELECTION}`}</b>
         </div>
         <BarChart 
           data={cy_table}
@@ -541,7 +552,7 @@ end={
         </BarChart>
     </Group>
     <Group>
-        <DataTable data={cy_table} wrapTitles=true rowShading=true title="Calendar  Year ({cy_table[0].Date_Range}) Over Year Comparison of {`${mode_severity_selection[0].SEVERITY_SELECTION}`} Injuries for {`${mode_severity_selection[0].MODE_SELECTION}`}">
+        <DataTable data={cy_table} wrapTitles=true rowShading=true title="Calendar  Year ({cy_table[0].Date_Range}) Over Year Comparison of {`${mode_severity_selection[0].SEVERITY_SELECTION}`} for {`${mode_severity_selection[0].MODE_SELECTION}`}">
             <Column id=Year wrap=true/>
             <Column id=Count/>
             <Column id=Diff_from_previous contentType=delta downIsGood=True title="Prior Year Diff"/>

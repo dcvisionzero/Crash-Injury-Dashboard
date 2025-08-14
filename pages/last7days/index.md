@@ -126,23 +126,34 @@ WITH
   -- 3. Aggregate severities based on the INTERSECTION of both inputs
   severity_agg_cte AS (
     SELECT
-      STRING_AGG(
-        DISTINCT SEVERITY,
-        ', '
-        ORDER BY
-          CASE SEVERITY
-            WHEN 'Minor' THEN 1
-            WHEN 'Major' THEN 2
-            WHEN 'Fatal' THEN 3
-          END
-      ) AS severity_list,
-      COUNT(DISTINCT SEVERITY) AS severity_count
+        COUNT(DISTINCT SEVERITY) AS severity_count,
+        CASE
+        WHEN COUNT(DISTINCT SEVERITY) = 0 THEN ' '
+        WHEN BOOL_AND(SEVERITY IN ('Fatal')) THEN 'Fatalities'
+        WHEN BOOL_AND(SEVERITY IN ('Major', 'Fatal')) AND COUNT(DISTINCT SEVERITY) = 2 THEN 'Major Injuries and Fatalities'
+        WHEN BOOL_AND(SEVERITY IN ('Minor', 'Major')) AND COUNT(DISTINCT SEVERITY) = 2 THEN 'Minor and Major Injuries'
+        WHEN BOOL_AND(SEVERITY IN ('Minor', 'Major', 'Fatal')) AND COUNT(DISTINCT SEVERITY) = 3 THEN 'Minor and Major Injuries, Fatalities'
+        ELSE STRING_AGG(
+            DISTINCT CASE
+            WHEN SEVERITY = 'Fatal' THEN 'Fatalities'
+            WHEN SEVERITY = 'Major' THEN 'Major Injuries'
+            WHEN SEVERITY = 'Minor' THEN 'Minor Injuries'
+            END,
+            ', '
+            ORDER BY
+            CASE SEVERITY
+                WHEN 'Minor' THEN 1
+                WHEN 'Major' THEN 2
+                WHEN 'Fatal' THEN 3
+            END
+        )
+        END AS severity_list
     FROM
-      crashes.crashes
+        crashes.crashes
     WHERE
-      MODE IN ${inputs.multi_mode_dd.value}
-      AND SEVERITY IN ${inputs.multi_severity.value}
-  )
+        MODE IN ${inputs.multi_mode_dd.value}
+        AND SEVERITY IN ${inputs.multi_severity.value}
+    )
 -- 4. Combine results and apply final formatting logic to each column
 SELECT
   CASE
@@ -157,7 +168,7 @@ SELECT
     WHEN severity_count = 1 THEN severity_list
     WHEN severity_count = 2 THEN REPLACE(severity_list, ', ', ' and ')
     ELSE REGEXP_REPLACE(severity_list, ',([^,]+)$', ', and \\1')
-  END AS SEVERITY_SELECTION
+    END AS SEVERITY_SELECTION
 FROM
   mode_agg_cte,
   severity_agg_cte,
@@ -206,7 +217,7 @@ The last 7 days with available data range from <Value data={inc_map} column="WEE
 <Grid cols=2>
     <Group>
         <div style="font-size: 14px;">
-            <b>Last 7 Days - Map of {`${mode_severity_selection[0].SEVERITY_SELECTION}`} Injuries for {`${mode_severity_selection[0].MODE_SELECTION}`}</b>
+            <b>Last 7 Days - Map of {`${mode_severity_selection[0].SEVERITY_SELECTION}`} for {`${mode_severity_selection[0].MODE_SELECTION}`}</b>
         </div>
         <Note>
             Each point on the map represents an injury. Injury incidents can overlap in the same spot.
@@ -235,7 +246,7 @@ The last 7 days with available data range from <Value data={inc_map} column="WEE
         </Note>
     </Group>
     <Group>
-        <DataTable data={inc_map} title="Last 7 Days - Table of {`${mode_severity_selection[0].SEVERITY_SELECTION}`} Injuries for {`${mode_severity_selection[0].MODE_SELECTION}`}" wrapTitles=true rowShading=true groupBy=WEEKDAY subtotals=true sort="WEEKDAY desc" totalRow=true accordionRowColor="#D3D3D3">
+        <DataTable data={inc_map} title="Last 7 Days - Table of {`${mode_severity_selection[0].SEVERITY_SELECTION}`} for {`${mode_severity_selection[0].MODE_SELECTION}`}" wrapTitles=true rowShading=true groupBy=WEEKDAY subtotals=true sort="WEEKDAY desc" totalRow=true accordionRowColor="#D3D3D3">
             <Column id=REPORTDATE title="Date" fmt='hh:mm' wrap=true totalAgg="Total"/>
             <Column id=MODESEV title="Road User - Sev" wrap=true/>
             <Column id=AGE title="Age" wrap=true totalAgg="-"/>

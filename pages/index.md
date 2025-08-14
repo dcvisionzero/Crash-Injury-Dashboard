@@ -816,39 +816,47 @@ FROM
 ```
 
 ```sql severity_selection
-WITH ordered_severities AS (
-  SELECT DISTINCT
-    SEVERITY
-  FROM
-    crashes.crashes
-  WHERE
-    SEVERITY IN ${inputs.multi_severity.value}
-),
-agg_severities AS (
-  SELECT
-    STRING_AGG(
-      SEVERITY,
-      ', '
-      ORDER BY
-        CASE SEVERITY
-          WHEN 'Minor' THEN 1
-          WHEN 'Major' THEN 2
-          WHEN 'Fatal' THEN 3
-        END
-    ) AS severity_list,
-    COUNT(SEVERITY) AS severity_count
-  FROM
-    ordered_severities
-)
+  -- 1. Aggregate severities based on the INTERSECTION of inputs
+WITH
+  severity_agg_cte AS (
+    SELECT
+        COUNT(DISTINCT SEVERITY) AS severity_count,
+        CASE
+        WHEN COUNT(DISTINCT SEVERITY) = 0 THEN ' '
+        WHEN BOOL_AND(SEVERITY IN ('Fatal')) THEN 'Fatalities'
+        WHEN BOOL_AND(SEVERITY IN ('Major', 'Fatal')) AND COUNT(DISTINCT SEVERITY) = 2 THEN 'Major Injuries and Fatalities'
+        WHEN BOOL_AND(SEVERITY IN ('Minor', 'Major')) AND COUNT(DISTINCT SEVERITY) = 2 THEN 'Minor and Major Injuries'
+        WHEN BOOL_AND(SEVERITY IN ('Minor', 'Major', 'Fatal')) AND COUNT(DISTINCT SEVERITY) = 3 THEN 'Minor and Major Injuries, Fatalities'
+        ELSE STRING_AGG(
+            DISTINCT CASE
+            WHEN SEVERITY = 'Fatal' THEN 'Fatalities'
+            WHEN SEVERITY = 'Major' THEN 'Major Injuries'
+            WHEN SEVERITY = 'Minor' THEN 'Minor Injuries'
+            END,
+            ', '
+            ORDER BY
+            CASE SEVERITY
+                WHEN 'Minor' THEN 1
+                WHEN 'Major' THEN 2
+                WHEN 'Fatal' THEN 3
+            END
+        )
+        END AS severity_list
+    FROM
+        crashes.crashes
+    WHERE
+        SEVERITY IN ${inputs.multi_severity.value}
+    )
+-- 2. Final formatting for SEVERITY_SELECTION
 SELECT
   CASE
     WHEN severity_count = 0 THEN ' '
     WHEN severity_count = 1 THEN severity_list
     WHEN severity_count = 2 THEN REPLACE(severity_list, ', ', ' and ')
     ELSE REGEXP_REPLACE(severity_list, ',([^,]+)$', ', and \\1')
-  END AS SEVERITY_SELECTION
+    END AS SEVERITY_SELECTION
 FROM
-  agg_severities;
+  severity_agg_cte
 ```
 
 <!--
@@ -903,7 +911,7 @@ echartsOptions={{animation: false}}
 
 <Grid cols=2>
     <Group>
-        <DataTable data={period_comp_mode} totalRow sort="current_period_sum desc" wrapTitles rowShading title="Year Over Year Comparison of {`${severity_selection[0].SEVERITY_SELECTION}`} Injuries by Road User">
+        <DataTable data={period_comp_mode} totalRow sort="current_period_sum desc" wrapTitles rowShading title="Year Over Year Comparison of {`${severity_selection[0].SEVERITY_SELECTION}`} by Road User">
             <Column id="MODE" title="Road User" description="*Fatal Only" wrap=true totalAgg="Total"/>
             <Column id=ICON title=' ' contentType=image height=22px align=center totalAgg=" "/>
             <Column id="current_period_sum" title="{period_comp_mode[0].current_period_range}"/>
@@ -912,7 +920,7 @@ echartsOptions={{animation: false}}
             <Column id="percentage_change" fmt="pct0" title="% Diff" totalAgg={period_comp_mode[0].total_percentage_change} totalFmt="pct0"/>
         </DataTable>
         <div style="font-size: 14px;">
-            <b>Percentage Breakdown of {`${severity_selection[0].SEVERITY_SELECTION}`} Injuries by Road User</b>
+            <b>Percentage Breakdown of {`${severity_selection[0].SEVERITY_SELECTION}`} by Road User</b>
         </div>
         <BarChart 
             data={barchart_mode}
@@ -932,7 +940,7 @@ echartsOptions={{animation: false}}
         />
     </Group>
     <Group>
-        <DataTable data={period_comp_severity} totalRow=true sort="current_period_sum desc" wrapTitles=true rowShading=true title="Year Over Year Comparison of Injuries by Severity for All Road Users">
+        <DataTable data={period_comp_severity} totalRow=true sort="current_period_sum desc" wrapTitles=true rowShading=true title="Year Over Year Comparison of {`${severity_selection[0].SEVERITY_SELECTION}`} for All Road Users">
             <Column id=SEVERITY title=Severity wrap=true totalAgg="Total"/>
             <Column id=current_period_sum title="{period_comp_severity[0].current_period_range}" />
             <Column id=prior_period_sum title="{period_comp_severity[0].prior_period_range}" />
@@ -940,7 +948,7 @@ echartsOptions={{animation: false}}
             <Column id=percentage_change fmt='pct0' title="% Diff" totalAgg={period_comp_severity[0].total_percentage_change} totalFmt='pct0' /> 
         </DataTable>
         <div style="font-size: 14px;">
-            <b>Percentage Breakdown of Injuries by Severity for All Road Users</b>
+            <b>Percentage Breakdown of {`${severity_selection[0].SEVERITY_SELECTION}`} for All Road Users</b>
         </div>
         <BarChart 
             data={barchart_severity}

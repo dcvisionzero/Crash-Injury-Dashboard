@@ -318,23 +318,34 @@ WITH
   -- 3. Aggregate severities based on the INTERSECTION of both inputs
   severity_agg_cte AS (
     SELECT
-      STRING_AGG(
-        DISTINCT SEVERITY,
-        ', '
-        ORDER BY
-          CASE SEVERITY
-            WHEN 'Minor' THEN 1
-            WHEN 'Major' THEN 2
-            WHEN 'Fatal' THEN 3
-          END
-      ) AS severity_list,
-      COUNT(DISTINCT SEVERITY) AS severity_count
+        COUNT(DISTINCT SEVERITY) AS severity_count,
+        CASE
+        WHEN COUNT(DISTINCT SEVERITY) = 0 THEN ' '
+        WHEN BOOL_AND(SEVERITY IN ('Fatal')) THEN 'Fatalities'
+        WHEN BOOL_AND(SEVERITY IN ('Major', 'Fatal')) AND COUNT(DISTINCT SEVERITY) = 2 THEN 'Major Injuries and Fatalities'
+        WHEN BOOL_AND(SEVERITY IN ('Minor', 'Major')) AND COUNT(DISTINCT SEVERITY) = 2 THEN 'Minor and Major Injuries'
+        WHEN BOOL_AND(SEVERITY IN ('Minor', 'Major', 'Fatal')) AND COUNT(DISTINCT SEVERITY) = 3 THEN 'Minor and Major Injuries, Fatalities'
+        ELSE STRING_AGG(
+            DISTINCT CASE
+            WHEN SEVERITY = 'Fatal' THEN 'Fatalities'
+            WHEN SEVERITY = 'Major' THEN 'Major Injuries'
+            WHEN SEVERITY = 'Minor' THEN 'Minor Injuries'
+            END,
+            ', '
+            ORDER BY
+            CASE SEVERITY
+                WHEN 'Minor' THEN 1
+                WHEN 'Major' THEN 2
+                WHEN 'Fatal' THEN 3
+            END
+        )
+        END AS severity_list
     FROM
-      crashes.crashes
+        crashes.crashes
     WHERE
-      MODE IN ${inputs.multi_mode_dd.value}
-      AND SEVERITY IN ${inputs.multi_severity.value}
-  )
+        MODE IN ${inputs.multi_mode_dd.value}
+        AND SEVERITY IN ${inputs.multi_severity.value}
+    )
 -- 4. Combine results and apply final formatting logic to each column
 SELECT
   CASE
@@ -349,11 +360,40 @@ SELECT
     WHEN severity_count = 1 THEN severity_list
     WHEN severity_count = 2 THEN REPLACE(severity_list, ', ', ' and ')
     ELSE REGEXP_REPLACE(severity_list, ',([^,]+)$', ', and \\1')
-  END AS SEVERITY_SELECTION
+    END AS SEVERITY_SELECTION
 FROM
   mode_agg_cte,
   severity_agg_cte,
   total_modes_cte;
+```
+
+```sql selected_date_range
+WITH
+  report_date_range AS (
+    SELECT
+      CASE 
+        WHEN '${inputs.date_range.end}'::DATE 
+             >= (SELECT MAX(REPORTDATE) FROM crashes.crashes)::DATE
+        THEN (SELECT MAX(REPORTDATE) FROM crashes.crashes)::DATE + INTERVAL '1 day'
+        ELSE '${inputs.date_range.end}'::DATE + INTERVAL '1 day'
+      END AS end_date,
+      '${inputs.date_range.start}'::DATE AS start_date
+  ),
+  date_info AS (
+    SELECT
+      CASE
+        WHEN start_date = DATE_TRUNC('year', '${inputs.date_range.end}'::DATE)
+         AND '${inputs.date_range.end}'::DATE = (SELECT MAX(REPORTDATE) FROM crashes.crashes)::DATE
+        THEN EXTRACT(YEAR FROM '${inputs.date_range.end}'::DATE)::VARCHAR || ' YTD'
+        ELSE
+          strftime(start_date, '%m/%d/%y')
+          || '-'
+          || strftime(end_date - INTERVAL '1 day', '%m/%d/%y')
+      END AS current_period_range
+    FROM report_date_range
+  )
+SELECT current_period_range
+FROM date_info;
 ```
 
 <DateRange
@@ -414,7 +454,7 @@ FROM
 <Grid cols=2>
     <Group>
         <div style="font-size: 14px;">
-            <b>Heatmap of {`${mode_severity_selection[0].SEVERITY_SELECTION}`} Injuries for {`${mode_severity_selection[0].MODE_SELECTION}`}</b>
+            <b>Heatmap of {`${mode_severity_selection[0].SEVERITY_SELECTION}`} for {`${mode_severity_selection[0].MODE_SELECTION}`} ({`${selected_date_range[0].current_period_range}`})</b>
         </div>
         <Note>
             Select a hexagon to zoom in and view more details about the injuries resulting from a crash within it.
@@ -435,7 +475,7 @@ FROM
     </Group>
     <Group>
         <div style="font-size: 14px;">
-            <b>{`${mode_severity_selection[0].SEVERITY_SELECTION}`} Injuries for {`${mode_severity_selection[0].MODE_SELECTION}`} by Day of Week & Time of the Day</b>
+            <b>{`${mode_severity_selection[0].SEVERITY_SELECTION}`} for {`${mode_severity_selection[0].MODE_SELECTION}`} by Day of Week & Time of the Day ({`${selected_date_range[0].current_period_range}`})</b>
         </div>
         <Heatmap
         data={day}
@@ -551,7 +591,7 @@ FROM
         </DataTable>
     </Group>
     <Group>
-        <DataTable data={hex_with_link} title="Hexagon Ranking of {`${mode_severity_selection[0].SEVERITY_SELECTION}`} Injuries for {`${mode_severity_selection[0].MODE_SELECTION}`}" search=true link=link rows=3 rowShading=true sort="count desc">
+        <DataTable data={hex_with_link} title="Hexagon Ranking of {`${mode_severity_selection[0].SEVERITY_SELECTION}`} for {`${mode_severity_selection[0].MODE_SELECTION}`} ({`${selected_date_range[0].current_period_range}`})" search=true link=link rows=3 rowShading=true sort="count desc">
             <Column id=GRID_ID title="Hexagon ID"/>
             <Column id=count contentType=colorscale/>
         </DataTable>
