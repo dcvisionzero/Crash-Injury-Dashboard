@@ -390,6 +390,217 @@ WITH
     ORDER BY mas.MODE, period;
 ```
 
+```sql period_comp_mode_3ytd
+WITH 
+-- Normalize the user-provided dates to an exclusive end_date
+report_date_range AS (
+    SELECT
+      CASE 
+        WHEN '${inputs.date_range.end}'::DATE 
+             >= (SELECT MAX(REPORTDATE) FROM crashes.crashes)::DATE
+        THEN (SELECT MAX(REPORTDATE) FROM crashes.crashes)::DATE + INTERVAL '1 day'
+        ELSE '${inputs.date_range.end}'::DATE + INTERVAL '1 day'
+      END   AS end_date,
+      '${inputs.date_range.start}'::DATE AS start_date
+),
+
+-- Validation flag: 1 = valid, 0 = invalid
+validate_range AS (
+    SELECT
+      start_date,
+      end_date,
+      CASE 
+        WHEN end_date > start_date + INTERVAL '1 year' THEN 0 -- exceeds 1 year span
+        WHEN EXTRACT(YEAR FROM start_date) <> EXTRACT(YEAR FROM end_date - INTERVAL '1 day')
+          THEN 0 -- crosses calendar years
+        ELSE 1 -- valid
+      END AS is_valid
+    FROM report_date_range
+),
+
+-- Date info (force validation join)
+date_info AS (
+    SELECT
+      r.start_date,
+      r.end_date,
+      CASE
+        WHEN r.start_date = DATE_TRUNC('year', r.start_date)
+         AND r.end_date < DATE_TRUNC('year', r.start_date) + INTERVAL '1 year'
+        THEN '''' || RIGHT(CAST(EXTRACT(YEAR FROM r.end_date - INTERVAL '1 day') AS VARCHAR), 2) || ' YTD'
+        ELSE
+          strftime(r.start_date, '%m/%d/%y')
+          || '-'
+          || strftime(r.end_date - INTERVAL '1 day', '%m/%d/%y')
+      END AS date_range_label,
+      '''' || RIGHT(CAST(EXTRACT(YEAR FROM r.start_date) AS VARCHAR), 2)      AS current_year_label,
+      '''' || RIGHT(CAST(EXTRACT(YEAR FROM r.start_date) - 1 AS VARCHAR), 2)  AS prior_year_label,
+      (r.end_date - r.start_date) AS date_range_days,
+      v.is_valid
+    FROM report_date_range r
+    JOIN validate_range v ON 1=1
+),
+
+modes_and_severities AS (
+    SELECT DISTINCT MODE
+    FROM crashes.crashes
+),
+
+-- Current period sum by mode (half-open interval)
+current_period AS (
+    SELECT 
+      MODE,
+      SUM(COUNT) AS sum_count
+    FROM crashes.crashes
+    WHERE
+      SEVERITY IN ${inputs.multi_severity.value}
+      AND REPORTDATE >= (SELECT start_date FROM date_info)
+      AND REPORTDATE <  (SELECT end_date   FROM date_info)
+      AND AGE BETWEEN ${inputs.min_age.value}
+                  AND (
+                    CASE 
+                      WHEN ${inputs.min_age.value} <> 0
+                       AND ${inputs.max_age.value} = 120
+                      THEN 119
+                      ELSE ${inputs.max_age.value}
+                    END
+                  )
+    GROUP BY MODE
+),
+
+-- Three prior 1-year slices (T-1, T-2, T-3) over the same day-of-year range (half-open)
+prior_years AS (
+    SELECT MODE, SUM(COUNT) AS sum_count, 1 AS yr_offset
+    FROM crashes.crashes
+    JOIN date_info di ON 1=1
+    WHERE di.is_valid = 1
+      AND SEVERITY IN ${inputs.multi_severity.value}
+      AND REPORTDATE >= di.start_date - INTERVAL '1 year'
+      AND REPORTDATE <  di.end_date   - INTERVAL '1 year'
+      AND AGE BETWEEN ${inputs.min_age.value} AND (
+        CASE WHEN ${inputs.min_age.value} <> 0 AND ${inputs.max_age.value} = 120
+             THEN 119 ELSE ${inputs.max_age.value} END
+      )
+    GROUP BY MODE
+
+    UNION ALL
+
+    SELECT MODE, SUM(COUNT) AS sum_count, 2 AS yr_offset
+    FROM crashes.crashes
+    JOIN date_info di ON 1=1
+    WHERE di.is_valid = 1
+      AND SEVERITY IN ${inputs.multi_severity.value}
+      AND REPORTDATE >= di.start_date - INTERVAL '2 year'
+      AND REPORTDATE <  di.end_date   - INTERVAL '2 year'
+      AND AGE BETWEEN ${inputs.min_age.value} AND (
+        CASE WHEN ${inputs.min_age.value} <> 0 AND ${inputs.max_age.value} = 120
+             THEN 119 ELSE ${inputs.max_age.value} END
+      )
+    GROUP BY MODE
+
+    UNION ALL
+
+    SELECT MODE, SUM(COUNT) AS sum_count, 3 AS yr_offset
+    FROM crashes.crashes
+    JOIN date_info di ON 1=1
+    WHERE di.is_valid = 1
+      AND SEVERITY IN ${inputs.multi_severity.value}
+      AND REPORTDATE >= di.start_date - INTERVAL '3 year'
+      AND REPORTDATE <  di.end_date   - INTERVAL '3 year'
+      AND AGE BETWEEN ${inputs.min_age.value} AND (
+        CASE WHEN ${inputs.min_age.value} <> 0 AND ${inputs.max_age.value} = 120
+             THEN 119 ELSE ${inputs.max_age.value} END
+      )
+    GROUP BY MODE
+),
+
+-- Average of those three prior years per mode (null if invalid), always divide by 3
+prior_avg AS (
+    SELECT
+      MODE,
+      CASE WHEN (SELECT is_valid FROM date_info) = 1
+           THEN (
+             COALESCE(MAX(CASE WHEN yr_offset=1 THEN sum_count END),0) +
+             COALESCE(MAX(CASE WHEN yr_offset=2 THEN sum_count END),0) +
+             COALESCE(MAX(CASE WHEN yr_offset=3 THEN sum_count END),0)
+           ) / 3.0
+           ELSE NULL
+      END AS avg_sum_count
+    FROM prior_years
+    GROUP BY MODE
+),
+
+-- Totals for share and overall percentage change (null if invalid)
+total_counts AS (
+    SELECT
+      SUM(cp.sum_count) AS total_current_period,
+      CASE WHEN (SELECT is_valid FROM date_info) = 1
+           THEN SUM(pa.avg_sum_count)
+           ELSE NULL
+      END AS total_prior_avg
+    FROM current_period cp
+    FULL JOIN prior_avg pa USING (MODE)
+),
+
+-- Label "'YY-'YY YTD Avg" based on the current period's calendar year
+prior_period_label AS (
+    SELECT
+      '''' || RIGHT(CAST(EXTRACT(YEAR FROM start_date) - 3 AS VARCHAR), 2)
+      || '-' || '''' || RIGHT(CAST(EXTRACT(YEAR FROM start_date) - 1 AS VARCHAR), 2)
+      || ' YTD Avg' AS label
+    FROM date_info
+)
+
+SELECT
+  mas.MODE,
+  CASE
+    WHEN mas.MODE = 'Driver'        THEN 'https://raw.githubusercontent.com/rafaelmorenoco/Crash-Injury-Dashboard-Backend/main/Icons/driver.png'
+    WHEN mas.MODE = 'Passenger'     THEN 'https://raw.githubusercontent.com/rafaelmorenoco/Crash-Injury-Dashboard-Backend/main/Icons/passenger.png'
+    WHEN mas.MODE = 'Pedestrian'    THEN 'https://raw.githubusercontent.com/rafaelmorenoco/Crash-Injury-Dashboard-Backend/main/Icons/pedestrian.png'
+    WHEN mas.MODE = 'Bicyclist'     THEN 'https://raw.githubusercontent.com/rafaelmorenoco/Crash-Injury-Dashboard-Backend/main/Icons/bicyclist.png'
+    WHEN mas.MODE = 'Motorcyclist*' THEN 'https://raw.githubusercontent.com/rafaelmorenoco/Crash-Injury-Dashboard-Backend/main/Icons/motorcyclist.png'
+    WHEN mas.MODE = 'Scooterist*'   THEN 'https://raw.githubusercontent.com/rafaelmorenoco/Crash-Injury-Dashboard-Backend/main/Icons/scooterist.png'
+    WHEN mas.MODE IN ('Unknown','Other')
+                                    THEN 'https://raw.githubusercontent.com/rafaelmorenoco/Crash-Injury-Dashboard-Backend/main/Icons/unknown.png'
+    ELSE NULL
+  END AS ICON,
+
+  COALESCE(cp.sum_count, 0)                             AS current_period_sum,
+  ROUND(pa.avg_sum_count, 0)                            AS prior_3yr_avg_sum,
+
+  CASE WHEN pa.avg_sum_count IS NOT NULL
+       THEN COALESCE(cp.sum_count, 0) - pa.avg_sum_count
+       ELSE NULL
+  END AS difference,
+
+  CASE
+    WHEN pa.avg_sum_count IS NOT NULL AND pa.avg_sum_count != 0
+    THEN (COALESCE(cp.sum_count, 0) - pa.avg_sum_count) / pa.avg_sum_count
+    ELSE NULL
+  END AS percentage_change,
+
+  (SELECT date_range_label   FROM date_info)       AS current_period_range,
+  (SELECT label              FROM prior_period_label) AS prior_period_range,
+  (SELECT current_year_label FROM date_info)       AS current_year_label,
+  (SELECT prior_year_label   FROM date_info)       AS prior_year_label,
+
+  CASE
+    WHEN total_prior_avg IS NOT NULL AND total_prior_avg != 0
+    THEN (total_current_period - total_prior_avg) / total_prior_avg
+    ELSE NULL
+  END AS total_percentage_change,
+
+  COALESCE(cp.sum_count, 0) / NULLIF(total_current_period, 0) AS current_mode_percentage,
+  CASE WHEN total_prior_avg IS NOT NULL
+       THEN pa.avg_sum_count / NULLIF(total_prior_avg, 0)
+       ELSE NULL
+  END AS prior_mode_percentage
+
+FROM modes_and_severities mas
+LEFT JOIN current_period cp USING (MODE)
+LEFT JOIN prior_avg      pa USING (MODE),
+     total_counts;
+```
+
 ```sql period_comp_severity
 WITH 
     report_date_range AS (
@@ -864,22 +1075,22 @@ echartsOptions={{animation: false}}
 -->
 
 <DateRange
-  start="2017-01-01"
-  end={
+start="2017-01-01"
+end={
     (last_record && last_record[0] && last_record[0].end_date)
-      ? `${last_record[0].end_date}`
-      : (() => {
-          const twoDaysAgo = new Date(new Date().setDate(new Date().getDate() - 2));
-          return new Intl.DateTimeFormat('en-CA', {
+    ? `${last_record[0].end_date}`
+    : (() => {
+        const twoDaysAgo = new Date(new Date().setDate(new Date().getDate() - 2));
+        return new Intl.DateTimeFormat('en-CA', {
             timeZone: 'America/New_York'
-          }).format(twoDaysAgo);
+        }).format(twoDaysAgo);
         })()
-  }
-  disableAutoDefault={true}
-  name="date_range"
-  presetRanges={['Last 7 Days', 'Last 30 Days', 'Last 90 Days', 'Last 6 Months', 'Last 12 Months', 'Month to Today', 'Last Month', 'Year to Today', 'Last Year']}
-  defaultValue="Year to Today"
-  description="By default, there is a two-day lag after the latest update"
+}
+disableAutoDefault={true}
+name="date_range"
+presetRanges={['Last 7 Days', 'Last 30 Days', 'Last 90 Days', 'Last 6 Months', 'Last 12 Months', 'Month to Today', 'Last Month', 'Year to Today', 'Last Year']}
+defaultValue="Year to Today"
+description="By default, there is a two-day lag after the latest update"
 />
 
 <Dropdown
@@ -910,35 +1121,70 @@ echartsOptions={{animation: false}}
 />
 
 <Grid cols=2>
-    <Group>
-        <DataTable data={period_comp_mode} totalRow sort="current_period_sum desc" wrapTitles rowShading title="Year Over Year Comparison of {`${severity_selection[0].SEVERITY_SELECTION}`} by Road User">
-            <Column id="MODE" title="Road User" description="*Fatal Only" wrap=true totalAgg="Total"/>
-            <Column id=ICON title=' ' contentType=image height=22px align=center totalAgg=" "/>
-            <Column id="current_period_sum" title="{period_comp_mode[0].current_period_range}"/>
-            <Column id="prior_period_sum" title="{period_comp_mode[0].prior_period_range}"/>
-            <Column id="difference" contentType="delta" downIsGood title="Diff"/>
-            <Column id="percentage_change" fmt="pct0" title="% Diff" totalAgg={period_comp_mode[0].total_percentage_change} totalFmt="pct0"/>
-        </DataTable>
-        <div style="font-size: 14px;">
-            <b>Percentage Breakdown of {`${severity_selection[0].SEVERITY_SELECTION}`} by Road User</b>
-        </div>
-        <BarChart 
-            data={barchart_mode}
-            chartAreaHeight=80
-            x=period_range
-            y=period_sum
-            xLabelWrap={true}
-            swapXY=true
-            yFmt=pct0
-            series=MODE
-            seriesColors={{"Pedestrian": '#00FFD4',"Other": '#06DFC8',"Bicyclist": '#0BBFBC',"Scooterist*": '#119FB0',"Motorcyclist*": '#167FA3',"Passenger": '#1C5F97',"Driver": '#271F7F',"Unknown": '#213F8B'}}
-            labels={true}
-            type=stacked100
-            downloadableData=false
-            downloadableImage=false
-            leftPadding={10} 
-        />
-    </Group>
+    <Tabs fullWidth=true>
+    <Tab label="{`${period_comp_mode_3ytd[0].current_year_label}`} vs {`${period_comp_mode_3ytd[0].prior_period_range}`}">
+        <Group>
+            <DataTable data={period_comp_mode_3ytd} totalRow sort="current_period_sum desc" wrapTitles rowShading title="Year Over Year Comparison of {`${severity_selection[0].SEVERITY_SELECTION}`} by Road User">
+                <Column id="MODE" title="Road User" description="*Fatal Only" wrap=true totalAgg="Total"/>
+                <Column id=ICON title=' ' contentType=image height=22px align=center totalAgg=" "/>
+                <Column id="current_period_sum" title="{period_comp_mode_3ytd[0].current_period_range}"/>
+                <Column id="prior_3yr_avg_sum" fmt="#,##0" title="{period_comp_mode_3ytd[0].prior_period_range}" />
+                <Column id="difference" contentType="delta" fmt="#,##0" downIsGood title="Diff"/>
+                <Column id="percentage_change" fmt="pct0" title="% Diff" totalAgg={period_comp_mode_3ytd[0].total_percentage_change} totalFmt="pct0"/>
+            </DataTable>
+            <div style="font-size: 14px;">
+                <b>Percentage Breakdown of {`${severity_selection[0].SEVERITY_SELECTION}`} by Road User</b>
+            </div>
+            <BarChart 
+                data={barchart_mode}
+                chartAreaHeight=80
+                x=period_range
+                y=period_sum
+                xLabelWrap={true}
+                swapXY=true
+                yFmt=pct0
+                series=MODE
+                seriesColors={{"Pedestrian": '#00FFD4',"Other": '#06DFC8',"Bicyclist": '#0BBFBC',"Scooterist*": '#119FB0',"Motorcyclist*": '#167FA3',"Passenger": '#1C5F97',"Driver": '#271F7F',"Unknown": '#213F8B'}}
+                labels={true}
+                type=stacked100
+                downloadableData=false
+                downloadableImage=false
+                leftPadding={10} 
+            />
+        </Group>
+    </Tab>
+    <Tab label="{`${period_comp_mode_3ytd[0].current_year_label}`} vs {`${period_comp_mode_3ytd[0].prior_year_label}`} YTD">
+        <Group>
+            <DataTable data={period_comp_mode} totalRow sort="current_period_sum desc" wrapTitles rowShading title="Year Over Year Comparison of {`${severity_selection[0].SEVERITY_SELECTION}`} by Road User">
+                <Column id="MODE" title="Road User" description="*Fatal Only" wrap=true totalAgg="Total"/>
+                <Column id=ICON title=' ' contentType=image height=22px align=center totalAgg=" "/>
+                <Column id="current_period_sum" title="{period_comp_mode[0].current_period_range}"/>
+                <Column id="prior_period_sum" title="{period_comp_mode[0].prior_period_range}"/>
+                <Column id="difference" contentType="delta" downIsGood title="Diff"/>
+                <Column id="percentage_change" fmt="pct0" title="% Diff" totalAgg={period_comp_mode[0].total_percentage_change} totalFmt="pct0"/>
+            </DataTable>
+            <div style="font-size: 14px;">
+                <b>Percentage Breakdown of {`${severity_selection[0].SEVERITY_SELECTION}`} by Road User</b>
+            </div>
+            <BarChart 
+                data={barchart_mode}
+                chartAreaHeight=80
+                x=period_range
+                y=period_sum
+                xLabelWrap={true}
+                swapXY=true
+                yFmt=pct0
+                series=MODE
+                seriesColors={{"Pedestrian": '#00FFD4',"Other": '#06DFC8',"Bicyclist": '#0BBFBC',"Scooterist*": '#119FB0',"Motorcyclist*": '#167FA3',"Passenger": '#1C5F97',"Driver": '#271F7F',"Unknown": '#213F8B'}}
+                labels={true}
+                type=stacked100
+                downloadableData=false
+                downloadableImage=false
+                leftPadding={10} 
+            />
+        </Group>
+    </Tab>
+    </Tabs>
     <Group>
         <DataTable data={period_comp_severity} totalRow=true sort="current_period_sum desc" wrapTitles=true rowShading=true title="Year Over Year Comparison of {`${severity_selection[0].SEVERITY_SELECTION}`} for All Road Users">
             <Column id=SEVERITY title=Severity wrap=true totalAgg="Total"/>
