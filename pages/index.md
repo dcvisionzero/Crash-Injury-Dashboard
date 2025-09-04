@@ -541,11 +541,11 @@ total_counts AS (
     FULL JOIN prior_avg pa USING (MODE)
 ),
 
--- Label "'YY-'YY YTD Avg" based on the current period's calendar year
+-- Label "'YY⁃'YY YTD Avg" based on the current period's calendar year
 prior_period_label AS (
     SELECT
       '''' || RIGHT(CAST(EXTRACT(YEAR FROM start_date) - 3 AS VARCHAR), 2)
-      || '-' || '''' || RIGHT(CAST(EXTRACT(YEAR FROM start_date) - 1 AS VARCHAR), 2)
+      || '⁃' || '''' || RIGHT(CAST(EXTRACT(YEAR FROM start_date) - 1 AS VARCHAR), 2)
       || ' YTD Avg' AS label
     FROM date_info
 )
@@ -568,13 +568,13 @@ SELECT
   ROUND(pa.avg_sum_count, 0)                            AS prior_3yr_avg_sum,
 
   CASE WHEN pa.avg_sum_count IS NOT NULL
-       THEN COALESCE(cp.sum_count, 0) - pa.avg_sum_count
+       THEN ROUND(COALESCE(cp.sum_count, 0) - pa.avg_sum_count, 0)
        ELSE NULL
   END AS difference,
 
   CASE
     WHEN pa.avg_sum_count IS NOT NULL AND pa.avg_sum_count != 0
-    THEN (COALESCE(cp.sum_count, 0) - pa.avg_sum_count) / pa.avg_sum_count
+    THEN (COALESCE(cp.sum_count, 0) - ROUND(pa.avg_sum_count, 0)) / ROUND(pa.avg_sum_count, 0)
     ELSE NULL
   END AS percentage_change,
 
@@ -585,7 +585,7 @@ SELECT
 
   CASE
     WHEN total_prior_avg IS NOT NULL AND total_prior_avg != 0
-    THEN (total_current_period - total_prior_avg) / total_prior_avg
+    THEN (total_current_period - ROUND(total_prior_avg, 0)) / ROUND(total_prior_avg, 0)
     ELSE NULL
   END AS total_percentage_change,
 
