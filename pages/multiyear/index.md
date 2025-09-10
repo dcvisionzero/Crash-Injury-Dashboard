@@ -136,9 +136,8 @@ WITH date_range AS (
         THEN (SELECT MAX(REPORTDATE) FROM crashes.crashes)
       ELSE '${inputs.date_range.end}'::DATE + INTERVAL '1 day'
     END AS end_date
-)
-SELECT COALESCE(AVG(yearly_count), 0) AS average_count
-FROM (
+),
+yearly_counts AS (
   SELECT 
     CAST(strftime('%Y', REPORTDATE) AS INTEGER) AS yr,
     SUM("COUNT") AS yearly_count
@@ -158,7 +157,19 @@ FROM (
                             )
     AND strftime('%Y', REPORTDATE) IN ${inputs.multi_year.value}
   GROUP BY yr
-) AS yearly_counts;
+),
+filtered_years AS (
+  SELECT *
+  FROM yearly_counts
+  WHERE yr <> CAST(strftime('%Y', current_date) AS INTEGER) -- exclude current year
+)
+SELECT 
+  COALESCE(AVG(yearly_count), 0) AS average_count,
+  printf('''%02d⁃''%02d YTD Avg',
+         MIN(yr) % 100,
+         MAX(yr) % 100
+  ) AS year_range_label
+FROM filtered_years;
 ```
 
 ```sql ytd_table
@@ -475,7 +486,7 @@ description="By default, there is a two-day lag after the latest update"
             }
           }}
         >
-          <ReferenceLine data={ytd_avg} y="average_count" label="Average"/>
+          <ReferenceLine data={ytd_avg} y="average_count" label={`${ytd_avg[0].year_range_label}`}/>
         </BarChart>
     </Group>
     <Group>
