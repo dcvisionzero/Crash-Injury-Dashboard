@@ -9,10 +9,10 @@ queries:
 <Tab label="{`${yoy_text_fatal_3ytd[0].current_year_label}`} vs {`${yoy_text_fatal_3ytd[0].prior_period_label}`}">
 
     - As of <Value data={last_record} column="latest_record"/> there <Value data={yoy_text_fatal_3ytd} column="has_have"/> been <Value data={yoy_text_fatal_3ytd} column="current_year_sum" agg=sum/> <Value data={yoy_text_fatal_3ytd} column="fatality"/> among all road users in <Value data={yoy_text_fatal_3ytd} column="current_year" fmt='####","'/>   <Value data={yoy_text_fatal_3ytd} column="difference" agg=sum fmt='####' /> <Value data={yoy_text_fatal_3ytd} column="difference_text"/> (<Delta data={yoy_text_fatal_3ytd} column="percentage_change" fmt="+0%;-0%;0%" downIsGood=True neutralMin=-0.00 neutralMax=0.00/>) compared to the last three-years-to-date average.
-    - As of <Value data={last_record} column="latest_record"/> there <Value data={yoy_text_major_injury} column="has_have"/> been <Value data={yoy_text_major_injury} column="current_year_sum" agg=sum/> <Value data={yoy_text_major_injury} column="major_injury"/> among all road users in <Value data={yoy_text_major_injury} column="current_year" fmt='####","'/>   <Value data={yoy_text_major_injury} column="difference" agg=sum fmt='####' /> <Value data={yoy_text_major_injury} column="difference_text"/> (<Delta data={yoy_text_major_injury} column="percentage_change" fmt="+0%;-0%;0%" downIsGood=True neutralMin=-0.00 neutralMax=0.00/>) compared to the same period in <Value data={yoy_text_major_injury} column="year_prior" fmt="####."/>
+    - As of <Value data={last_record} column="latest_record"/> there <Value data={yoy_text_major_injury_3ytd} column="has_have"/> been <Value data={yoy_text_major_injury_3ytd} column="current_year_sum" agg=sum/> <Value data={yoy_text_major_injury_3ytd} column="major_injury"/> among all road users in <Value data={yoy_text_major_injury_3ytd} column="current_year" fmt='####","'/>   <Value data={yoy_text_major_injury_3ytd} column="difference" agg=sum fmt='####' /> <Value data={yoy_text_major_injury_3ytd} column="difference_text"/> (<Delta data={yoy_text_major_injury_3ytd} column="percentage_change" fmt="+0%;-0%;0%" downIsGood=True neutralMin=-0.00 neutralMax=0.00/>) compared to the last three-years-to-date average.
 
 </Tab>
-<Tab label="{`${period_comp_mode_3ytd[0].current_year_label}`} vs {`${period_comp_mode_3ytd[0].prior_year_label}`} YTD">
+<Tab label="{`${yoy_text_fatal_3ytd[0].current_year_label}`} vs {`${yoy_text_fatal_3ytd[0].last_year_label}`} YTD">
 
     - As of <Value data={last_record} column="latest_record"/> there <Value data={yoy_text_fatal} column="has_have"/> been <Value data={yoy_text_fatal} column="current_year_sum" agg=sum/> <Value data={yoy_text_fatal} column="fatality"/> among all road users in <Value data={yoy_text_fatal} column="current_year" fmt='####","'/>   <Value data={yoy_text_fatal} column="difference" agg=sum fmt='####' /> <Value data={yoy_text_fatal} column="difference_text"/> (<Delta data={yoy_text_fatal} column="percentage_change" fmt="+0%;-0%;0%" downIsGood=True neutralMin=-0.00 neutralMax=0.00/>) compared to the same period in <Value data={yoy_text_fatal} column="year_prior" fmt="####."/>
     - As of <Value data={last_record} column="latest_record"/> there <Value data={yoy_text_major_injury} column="has_have"/> been <Value data={yoy_text_major_injury} column="current_year_sum" agg=sum/> <Value data={yoy_text_major_injury} column="major_injury"/> among all road users in <Value data={yoy_text_major_injury} column="current_year" fmt='####","'/>   <Value data={yoy_text_major_injury} column="difference" agg=sum fmt='####' /> <Value data={yoy_text_major_injury} column="difference_text"/> (<Delta data={yoy_text_major_injury} column="percentage_change" fmt="+0%;-0%;0%" downIsGood=True neutralMin=-0.00 neutralMax=0.00/>) compared to the same period in <Value data={yoy_text_major_injury} column="year_prior" fmt="####."/>
@@ -1643,11 +1643,11 @@ SELECT
         ELSE 'no change'
     END AS difference_text,
     p.current_year,
-    -- New: 'YY label for current year
     '''' || RIGHT(CAST(p.current_year AS VARCHAR), 2) AS current_year_label,
     '''' || RIGHT(CAST(p.current_year - 3 AS VARCHAR), 2)
           || '-' || '''' || RIGHT(CAST(p.current_year - 1 AS VARCHAR), 2)
           || ' YTD Avg' AS prior_period_label,
+    '''' || RIGHT(CAST(EXTRACT(YEAR FROM p.current_year_end - INTERVAL '1 year') AS VARCHAR), 2) AS last_year_label,
     CASE WHEN cy.current_year_sum = 1 THEN 'has' ELSE 'have' END AS has_have,
     CASE WHEN cy.current_year_sum = 1 THEN 'fatality' ELSE 'fatalities' END AS fatality
 FROM current_ytd cy
@@ -1716,6 +1716,103 @@ SELECT
 FROM
     yearly_counts yc
     CROSS JOIN params p;
+```
+
+```sql yoy_text_major_injury_3ytd
+WITH date_range AS (
+    SELECT
+        MAX(REPORTDATE)::DATE + INTERVAL '1 day' AS max_report_date
+    FROM crashes.crashes
+),
+params AS (
+    SELECT
+        date_trunc('year', dr.max_report_date) AS current_year_start,
+        dr.max_report_date AS current_year_end,
+        extract(year FROM dr.max_report_date) AS current_year
+    FROM date_range dr
+),
+-- Current YTD major injury count
+current_ytd AS (
+    SELECT
+        SUM(COUNT) AS current_year_sum
+    FROM crashes.crashes cr
+    CROSS JOIN params p
+    WHERE cr.SEVERITY = 'Major'
+      AND cr.REPORTDATE >= p.current_year_start
+      AND cr.REPORTDATE <  p.current_year_end
+),
+-- Three prior YTD periods
+prior_years AS (
+    SELECT
+        1 AS yr_offset,
+        SUM(COUNT) AS sum_count
+    FROM crashes.crashes cr
+    CROSS JOIN params p
+    WHERE cr.SEVERITY = 'Major'
+      AND cr.REPORTDATE >= p.current_year_start - INTERVAL '1 year'
+      AND cr.REPORTDATE <  p.current_year_end   - INTERVAL '1 year'
+    UNION ALL
+    SELECT
+        2 AS yr_offset,
+        SUM(COUNT) AS sum_count
+    FROM crashes.crashes cr
+    CROSS JOIN params p
+    WHERE cr.SEVERITY = 'Major'
+      AND cr.REPORTDATE >= p.current_year_start - INTERVAL '2 year'
+      AND cr.REPORTDATE <  p.current_year_end   - INTERVAL '2 year'
+    UNION ALL
+    SELECT
+        3 AS yr_offset,
+        SUM(COUNT) AS sum_count
+    FROM crashes.crashes cr
+    CROSS JOIN params p
+    WHERE cr.SEVERITY = 'Major'
+      AND cr.REPORTDATE >= p.current_year_start - INTERVAL '3 year'
+      AND cr.REPORTDATE <  p.current_year_end   - INTERVAL '3 year'
+),
+-- Average of the three prior YTDs
+prior_avg AS (
+    SELECT
+        (COALESCE(MAX(CASE WHEN yr_offset=1 THEN sum_count END),0) +
+         COALESCE(MAX(CASE WHEN yr_offset=2 THEN sum_count END),0) +
+         COALESCE(MAX(CASE WHEN yr_offset=3 THEN sum_count END),0)
+        ) / 3.0 AS prior_3yr_avg_sum
+    FROM prior_years
+)
+SELECT
+    'Major' AS severity,
+    cy.current_year_sum,
+    pa.prior_3yr_avg_sum,
+    ABS(cy.current_year_sum - pa.prior_3yr_avg_sum) AS difference,
+    CASE
+        WHEN pa.prior_3yr_avg_sum <> 0
+        THEN (cy.current_year_sum - pa.prior_3yr_avg_sum) / pa.prior_3yr_avg_sum
+        ELSE NULL
+    END AS percentage_change,
+    CASE
+        WHEN (cy.current_year_sum - pa.prior_3yr_avg_sum) > 0 THEN 'an increase of'
+        WHEN (cy.current_year_sum - pa.prior_3yr_avg_sum) < 0 THEN 'a decrease of'
+        ELSE NULL
+    END AS percentage_change_text,
+    CASE
+        WHEN (cy.current_year_sum - pa.prior_3yr_avg_sum) > 0 THEN 'more'
+        WHEN (cy.current_year_sum - pa.prior_3yr_avg_sum) < 0 THEN 'fewer'
+        ELSE 'no change'
+    END AS difference_text,
+    p.current_year,
+    -- 'YY label for current year
+    '''' || RIGHT(CAST(p.current_year AS VARCHAR), 2) AS current_year_label,
+    -- 'YY label for last year
+    '''' || RIGHT(CAST(p.current_year - 1 AS VARCHAR), 2) AS last_year_label,
+    -- Label for the prior period range, e.g. '22-'24 YTD Avg
+    '''' || RIGHT(CAST(p.current_year - 3 AS VARCHAR), 2)
+          || '-' || '''' || RIGHT(CAST(p.current_year - 1 AS VARCHAR), 2)
+          || ' YTD Avg' AS prior_period_label,
+    CASE WHEN cy.current_year_sum = 1 THEN 'has' ELSE 'have' END AS has_have,
+    CASE WHEN cy.current_year_sum = 1 THEN 'major injury' ELSE 'major injuries' END AS major_injury
+FROM current_ytd cy
+CROSS JOIN prior_avg pa
+CROSS JOIN params p;
 ```
 
 ```sql severity_selection
@@ -1812,168 +1909,185 @@ description="By default, there is a two-day lag after the latest update"
     description='Age 120 serves as a placeholder for missing age values in the records. However, missing values will be automatically excluded from the query if the default 0-120 range is changed by the user. To get a count of missing age values, go to the "Age Distribution" page.'
 />
 
-<Grid cols=2>
-    <Tabs fullWidth=true>
-    <Tab label="{`${period_comp_mode_3ytd[0].current_year_label}`} vs {`${period_comp_mode_3ytd[0].prior_period_range}`}">
-        <Group>
-            <DataTable data={period_comp_mode_3ytd} totalRow sort="current_period_sum desc" wrapTitles rowShading title="Year Over Year Comparison of {`${severity_selection[0].SEVERITY_SELECTION}`} by Road User">
-                <Column id="MODE" title="Road User" description="*Fatal Only" wrap=true totalAgg="Total"/>
-                <Column id=ICON title=' ' contentType=image height=22px align=center totalAgg=" "/>
-                <Column id="current_period_sum" title="{period_comp_mode_3ytd[0].current_period_range}"/>
-                <Column id="prior_3yr_avg_sum" fmt="#,##0" description="Average counts are rounded to simplify reporting." title="{period_comp_mode_3ytd[0].prior_period_range}" />
-                <Column id="difference" contentType="delta" fmt="#,##0" downIsGood title="Diff"/>
-                <Column id="percentage_change" fmt="pct0" title="% Diff" totalAgg={period_comp_mode_3ytd[0].total_percentage_change} totalFmt="pct0"/>
-            </DataTable>
-            <div style="font-size: 14px;">
-                <b>Percentage Breakdown of {`${severity_selection[0].SEVERITY_SELECTION}`} by Road User</b>
-            </div>
-            <BarChart 
-                data={barchart_mode_3ytd}
-                chartAreaHeight=80
-                x=period_range
-                y=period_sum
-                xLabelWrap={true}
-                swapXY=true
-                yFmt=pct0
-                series=MODE
-                seriesColors={{"Pedestrian": '#00FFD4',"Other": '#06DFC8',"Bicyclist": '#0BBFBC',"Scooterist*": '#119FB0',"Motorcyclist*": '#167FA3',"Passenger": '#1C5F97',"Driver": '#271F7F',"Unknown": '#213F8B'}}
-                labels={true}
-                type=stacked100
-                downloadableData=false
-                downloadableImage=false
-                leftPadding={10} 
-            />
-        </Group>
-    </Tab>
-    <Tab label="{`${period_comp_mode_3ytd[0].current_year_label}`} vs {`${period_comp_mode_3ytd[0].prior_year_label}`} YTD">
-        <Group>
-            <DataTable data={period_comp_mode} totalRow sort="current_period_sum desc" wrapTitles rowShading title="Year Over Year Comparison of {`${severity_selection[0].SEVERITY_SELECTION}`} by Road User">
-                <Column id="MODE" title="Road User" description="*Fatal Only" wrap=true totalAgg="Total"/>
-                <Column id=ICON title=' ' contentType=image height=22px align=center totalAgg=" "/>
-                <Column id="current_period_sum" title="{period_comp_mode[0].current_period_range}"/>
-                <Column id="prior_period_sum" title="{period_comp_mode[0].prior_period_range}"/>
-                <Column id="difference" contentType="delta" downIsGood title="Diff"/>
-                <Column id="percentage_change" fmt="pct0" title="% Diff" totalAgg={period_comp_mode[0].total_percentage_change} totalFmt="pct0"/>
-            </DataTable>
-            <div style="font-size: 14px;">
-                <b>Percentage Breakdown of {`${severity_selection[0].SEVERITY_SELECTION}`} by Road User</b>
-            </div>
-            <BarChart 
-                data={barchart_mode}
-                chartAreaHeight=80
-                x=period_range
-                y=period_sum
-                xLabelWrap={true}
-                swapXY=true
-                yFmt=pct0
-                series=MODE
-                seriesColors={{"Pedestrian": '#00FFD4',"Other": '#06DFC8',"Bicyclist": '#0BBFBC',"Scooterist*": '#119FB0',"Motorcyclist*": '#167FA3',"Passenger": '#1C5F97',"Driver": '#271F7F',"Unknown": '#213F8B'}}
-                labels={true}
-                type=stacked100
-                downloadableData=false
-                downloadableImage=false
-                leftPadding={10} 
-            />
-        </Group>
-    </Tab>
-    </Tabs>
-    <Tabs fullWidth=true>
-    <Tab label="{`${period_comp_mode_3ytd[0].current_year_label}`} vs {`${period_comp_mode_3ytd[0].prior_period_range}`}">
-        <Group>
-            <DataTable data={period_comp_severity_3ytd} totalRow=true sort="current_period_sum desc" wrapTitles=true rowShading=true title="Year Over Year Comparison of {`${severity_selection[0].SEVERITY_SELECTION}`} for All Road Users">
-                <Column id=SEVERITY title=Severity wrap=true totalAgg="Total"/>
-                <Column id=current_period_sum title="{period_comp_severity_3ytd[0].current_period_range}" />
-                <Column id=prior_3yr_avg_sum fmt='#,##0' description="Average counts are rounded to simplify reporting." title="{period_comp_severity_3ytd[0].prior_period_range}" />
-                <Column id=difference contentType=delta downIsGood=True title="Diff"/>
-                <Column id=percentage_change fmt='pct' title="% Diff" totalAgg={period_comp_severity_3ytd[0].total_percentage_change} totalFmt='pct' /> 
-            </DataTable>
-            <div style="font-size: 14px;">
-                <b>Percentage Breakdown of {`${severity_selection[0].SEVERITY_SELECTION}`} for All Road Users</b>
-            </div>
-            <BarChart 
-                data={barchart_severity_3ytd}
-                chartAreaHeight=80
-                x=period_range
-                y=period_sum
-                xLabelWrap={true}
-                swapXY=true
-                yFmt=pct0
-                series=SEVERITY
-                seriesColors={{"Minor": '#ffdf00',"Major": '#ff9412',"Fatal": '#ff5a53'}}
-                labels={true}
-                type=stacked100
-                downloadableData=false
-                downloadableImage=false
-                leftPadding={10}
-            /> 
-            <Alert status="positive">
-            <div markdown style="font-size: 14px;">
+<Tabs>
+  <Tab label="{`${period_comp_mode_3ytd[0].current_year_label}`} vs {`${period_comp_mode_3ytd[0].prior_period_range}`}">
+    <Grid cols=2>
+
+      <!-- Column 1: Mode (3YTD vs 3-year average) -->
+      <Group>
+        <DataTable data={period_comp_mode_3ytd} totalRow sort="current_period_sum desc" wrapTitles rowShading title="Year Over Year Comparison of {`${severity_selection[0].SEVERITY_SELECTION}`} by Road User">
+          <Column id="MODE" title="Road User" description="*Fatal Only" wrap=true totalAgg="Total"/>
+          <Column id=ICON title=' ' contentType=image height=22px align=center totalAgg=" "/>
+          <Column id="current_period_sum" title="{period_comp_mode_3ytd[0].current_period_range}"/>
+          <Column id="prior_3yr_avg_sum" fmt="#,##0" description="Average counts are rounded to simplify reporting." title="{period_comp_mode_3ytd[0].prior_period_range}" />
+          <Column id="difference" contentType="delta" fmt="#,##0" downIsGood title="Diff"/>
+          <Column id="percentage_change" fmt="pct0" title="% Diff" totalAgg={period_comp_mode_3ytd[0].total_percentage_change} totalFmt="pct0"/>
+        </DataTable>
+
+        <div style="font-size: 14px;">
+          <b>Percentage Breakdown of {`${severity_selection[0].SEVERITY_SELECTION}`} by Road User</b>
+        </div>
+
+        <BarChart 
+          data={barchart_mode_3ytd}
+          chartAreaHeight=80
+          x=period_range
+          y=period_sum
+          xLabelWrap={true}
+          swapXY=true
+          yFmt=pct0
+          series=MODE
+          seriesColors={{"Pedestrian": '#00FFD4',"Other": '#06DFC8',"Bicyclist": '#0BBFBC',"Scooterist*": '#119FB0',"Motorcyclist*": '#167FA3',"Passenger": '#1C5F97',"Driver": '#271F7F',"Unknown": '#213F8B'}}
+          labels={true}
+          type=stacked100
+          downloadableData=false
+          downloadableImage=false
+          leftPadding={10} 
+        />
+      </Group>
+
+      <!-- Column 2: Severity (3YTD vs 3-year average) -->
+      <Group>
+        <DataTable data={period_comp_severity_3ytd} totalRow=true sort="current_period_sum desc" wrapTitles=true rowShading=true title="Year Over Year Comparison of {`${severity_selection[0].SEVERITY_SELECTION}`} for All Road Users">
+          <Column id=SEVERITY title=Severity wrap=true totalAgg="Total"/>
+          <Column id=current_period_sum title="{period_comp_severity_3ytd[0].current_period_range}" />
+          <Column id=prior_3yr_avg_sum fmt='#,##0' description="Average counts are rounded to simplify reporting." title="{period_comp_severity_3ytd[0].prior_period_range}" />
+          <Column id=difference contentType=delta fmt='#,##0' downIsGood=True title="Diff"/>
+          <Column id=percentage_change fmt='pct' title="% Diff" totalAgg={period_comp_severity_3ytd[0].total_percentage_change} totalFmt='pct' /> 
+        </DataTable>
+
+        <div style="font-size: 14px;">
+          <b>Percentage Breakdown of {`${severity_selection[0].SEVERITY_SELECTION}`} for All Road Users</b>
+        </div>
+
+        <BarChart 
+          data={barchart_severity_3ytd}
+          chartAreaHeight=80
+          x=period_range
+          y=period_sum
+          xLabelWrap={true}
+          swapXY=true
+          yFmt=pct0
+          series=SEVERITY
+          seriesColors={{"Minor": '#ffdf00',"Major": '#ff9412',"Fatal": '#ff5a53'}}
+          labels={true}
+          type=stacked100
+          downloadableData=false
+          downloadableImage=false
+          leftPadding={10}
+        /> 
+
+        <Alert status="positive">
+          <div markdown style="font-size: 14px;">
 
             The District uses the Safe System Approach to eliminate roadway deaths and serious injuries, focusing on safe people, safe streets, safe vehicles, safe speeds, and post-crash care. Many District agencies have roles to play. Learn more: [2022 Update](https://visionzero.dc.gov/pages/2022-update).
 
-            </div>
-            <div markdown style="font-size: 14px;">
+          </div>
+          <div markdown style="font-size: 14px;">
 
             Additionally, DDOT uses crash injury data to target engineering fixes that slow speeds, shorten crossings, and carve out safe spaces for all road users. Learn more: [Engineering for Safety](https://visionzero.dc.gov/pages/engineering).
 
-            </div>
-            <div markdown style="font-size: 14px;">
+          </div>
+          <div markdown style="font-size: 14px;">
 
             Similarly, DDOT intentionally aligns with Vision Zero goals through safety-focused projects across all eight wards. Learn more: [Projects and Programs](https://ddot.dc.gov/page/projects-and-programs).
 
-            </div>
-            </Alert>
-        </Group>
-    </Tab>
-    <Tab label="{`${period_comp_mode_3ytd[0].current_year_label}`} vs {`${period_comp_mode_3ytd[0].prior_year_label}`} YTD">
-        <Group>
-            <DataTable data={period_comp_severity} totalRow=true sort="current_period_sum desc" wrapTitles=true rowShading=true title="Year Over Year Comparison of {`${severity_selection[0].SEVERITY_SELECTION}`} for All Road Users">
-                <Column id=SEVERITY title=Severity wrap=true totalAgg="Total"/>
-                <Column id=current_period_sum title="{period_comp_severity[0].current_period_range}" />
-                <Column id=prior_period_sum title="{period_comp_severity[0].prior_period_range}" />
-                <Column id=difference contentType=delta downIsGood=True title="Diff"/>
-                <Column id=percentage_change fmt='pct0' title="% Diff" totalAgg={period_comp_severity[0].total_percentage_change} totalFmt='pct0' /> 
-            </DataTable>
-            <div style="font-size: 14px;">
-                <b>Percentage Breakdown of {`${severity_selection[0].SEVERITY_SELECTION}`} for All Road Users</b>
-            </div>
-            <BarChart 
-                data={barchart_severity}
-                chartAreaHeight=80
-                x=period_range
-                y=period_sum
-                xLabelWrap={true}
-                swapXY=true
-                yFmt=pct0
-                series=SEVERITY
-                seriesColors={{"Minor": '#ffdf00',"Major": '#ff9412',"Fatal": '#ff5a53'}}
-                labels={true}
-                type=stacked100
-                downloadableData=false
-                downloadableImage=false
-                leftPadding={10}
-            /> 
-            <Alert status="positive">
-            <div markdown style="font-size: 14px;">
+          </div>
+        </Alert>
+      </Group>
+
+    </Grid>
+  </Tab>
+
+  <Tab label="{`${period_comp_mode_3ytd[0].current_year_label}`} vs {`${period_comp_mode_3ytd[0].prior_year_label}`} YTD">
+    <Grid cols=2>
+
+      <!-- Column 1: Mode (YTD vs prior YTD) -->
+      <Group>
+        <DataTable data={period_comp_mode} totalRow sort="current_period_sum desc" wrapTitles rowShading title="Year Over Year Comparison of {`${severity_selection[0].SEVERITY_SELECTION}`} by Road User">
+          <Column id="MODE" title="Road User" description="*Fatal Only" wrap=true totalAgg="Total"/>
+          <Column id=ICON title=' ' contentType=image height=22px align=center totalAgg=" "/>
+          <Column id="current_period_sum" title="{period_comp_mode[0].current_period_range}"/>
+          <Column id="prior_period_sum" title="{period_comp_mode[0].prior_period_range}"/>
+          <Column id="difference" contentType="delta" downIsGood title="Diff"/>
+          <Column id="percentage_change" fmt="pct0" title="% Diff" totalAgg={period_comp_mode[0].total_percentage_change} totalFmt="pct0"/>
+        </DataTable>
+
+        <div style="font-size: 14px;">
+          <b>Percentage Breakdown of {`${severity_selection[0].SEVERITY_SELECTION}`} by Road User</b>
+        </div>
+
+        <BarChart 
+          data={barchart_mode}
+          chartAreaHeight=80
+          x=period_range
+          y=period_sum
+          xLabelWrap={true}
+          swapXY=true
+          yFmt=pct0
+          series=MODE
+          seriesColors={{"Pedestrian": '#00FFD4',"Other": '#06DFC8',"Bicyclist": '#0BBFBC',"Scooterist*": '#119FB0',"Motorcyclist*": '#167FA3',"Passenger": '#1C5F97',"Driver": '#271F7F',"Unknown": '#213F8B'}}
+          labels={true}
+          type=stacked100
+          downloadableData=false
+          downloadableImage=false
+          leftPadding={10} 
+        />
+      </Group>
+
+      <!-- Column 2: Severity (YTD vs prior YTD) -->
+      <Group>
+        <DataTable data={period_comp_severity} totalRow=true sort="current_period_sum desc" wrapTitles=true rowShading=true title="Year Over Year Comparison of {`${severity_selection[0].SEVERITY_SELECTION}`} for All Road Users">
+          <Column id=SEVERITY title=Severity wrap=true totalAgg="Total"/>
+          <Column id=current_period_sum title="{period_comp_severity[0].current_period_range}" />
+          <Column id=prior_period_sum title="{period_comp_severity[0].prior_period_range}" />
+          <Column id=difference contentType=delta downIsGood=True title="Diff"/>
+          <Column id=percentage_change fmt='pct0' title="% Diff" totalAgg={period_comp_severity[0].total_percentage_change} totalFmt='pct0' /> 
+        </DataTable>
+
+        <div style="font-size: 14px;">
+          <b>Percentage Breakdown of {`${severity_selection[0].SEVERITY_SELECTION}`} for All Road Users</b>
+        </div>
+
+        <BarChart 
+          data={barchart_severity}
+          chartAreaHeight=80
+          x=period_range
+          y=period_sum
+          xLabelWrap={true}
+          swapXY=true
+          yFmt=pct0
+          series=SEVERITY
+          seriesColors={{"Minor": '#ffdf00',"Major": '#ff9412',"Fatal": '#ff5a53'}}
+          labels={true}
+          type=stacked100
+          downloadableData=false
+          downloadableImage=false
+          leftPadding={10}
+        /> 
+
+        <Alert status="positive">
+          <div markdown style="font-size: 14px;">
 
             The District uses the Safe System Approach to eliminate roadway deaths and serious injuries, focusing on safe people, safe streets, safe vehicles, safe speeds, and post-crash care. Many District agencies have roles to play. Learn more: [2022 Update](https://visionzero.dc.gov/pages/2022-update).
 
-            </div>
-            <div markdown style="font-size: 14px;">
+          </div>
+          <div markdown style="font-size: 14px;">
 
             Additionally, DDOT uses crash injury data to target engineering fixes that slow speeds, shorten crossings, and carve out safe spaces for all road users. Learn more: [Engineering for Safety](https://visionzero.dc.gov/pages/engineering).
 
-            </div>
-            <div markdown style="font-size: 14px;">
+          </div>
+          <div markdown style="font-size: 14px;">
 
             Similarly, DDOT intentionally aligns with Vision Zero goals through safety-focused projects across all eight wards. Learn more: [Projects and Programs](https://ddot.dc.gov/page/projects-and-programs).
 
-            </div>
-            </Alert>
-        </Group>
-    </Tab>
-    </Tabs>
-</Grid>
+          </div>
+        </Alert>
+      </Group>
+
+    </Grid>
+  </Tab>
+</Tabs>
 
 <Note>
     The latest crash record in the dataset is from <Value data={last_record} column="latest_record"/> and the data was last updated on <Value data={last_record} column="latest_update"/> hrs. This lag factors into prior period comparisons. The maximum comparison period is 5 years.
