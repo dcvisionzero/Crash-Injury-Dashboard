@@ -1980,7 +1980,7 @@ description="By default, there is a two-day lag after the latest update"
         <Alert status="positive">
           <div markdown style="font-size: 14px;">
 
-            The District uses the Safe System Approach to eliminate roadway deaths and serious injuries, focusing on safe people, safe streets, safe vehicles, safe speeds, and post-crash care. Many District agencies have roles to play. Learn more: [2022 Update](https://visionzero.dc.gov/pages/2022-update).
+            The District uses the Safe System Approach to eliminate roadway deaths and serious injuries, focusing on safe people, safe streets, safe vehicles, safe speeds, and post-crash care. Many District agencies have roles to play. Learn more: [Safe System Approach](/SSA/).
 
           </div>
           <div markdown style="font-size: 14px;">
