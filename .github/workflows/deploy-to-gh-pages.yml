@@ -23,7 +23,7 @@ jobs:
       - name: Install dependencies
         run: npm install
 
-      - name: Build Evidence project
+      - name: Build Evidence project (SPA mode)
         env:
           BASE_PATH: '/${{ github.event.repository.name }}'
           ## Add and uncomment any environment variables here
@@ -37,8 +37,8 @@ jobs:
           EVIDENCE_SOURCE__WARDS__FILENAME: ${{ secrets.EVIDENCE_SOURCE__WARDS__FILENAME }}
         run: |
           npm run sources
-          # Force sequential build to reduce peak memory usage
-          EVIDENCE_BUILD_CONCURRENCY=1 npm run build
+          # Build in SPA mode to reduce memory usage
+          EVIDENCE_BUILD_DIR=./build/${{ github.event.repository.name }} evidence build --spa
 
       - name: Upload Artifacts
         uses: actions/upload-pages-artifact@v3
@@ -61,4 +61,5 @@ jobs:
       - name: Deploy
         id: deployment
         uses: actions/deploy-pages@v4
+
 
