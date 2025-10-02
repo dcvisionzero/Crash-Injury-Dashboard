@@ -13,6 +13,7 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
       - name: Install Node.js
         uses: actions/setup-node@v4
         with:
@@ -22,7 +23,7 @@ jobs:
       - name: Install dependencies
         run: npm install
 
-      - name: build
+      - name: Build Evidence project
         env:
           BASE_PATH: '/${{ github.event.repository.name }}'
           ## Add and uncomment any environment variables here
@@ -36,7 +37,8 @@ jobs:
           EVIDENCE_SOURCE__WARDS__FILENAME: ${{ secrets.EVIDENCE_SOURCE__WARDS__FILENAME }}
         run: |
           npm run sources
-          npm run build
+          # Force sequential build to reduce peak memory usage
+          EVIDENCE_BUILD_CONCURRENCY=1 npm run build
 
       - name: Upload Artifacts
         uses: actions/upload-pages-artifact@v3
@@ -59,3 +61,4 @@ jobs:
       - name: Deploy
         id: deployment
         uses: actions/deploy-pages@v4
+
