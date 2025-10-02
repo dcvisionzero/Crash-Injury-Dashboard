@@ -42,25 +42,6 @@ from hin.hin
 group by all
 ```
 
-```sql interventions_table
-SELECT improvement, 
-    'https://visionzero.dc.gov/pages/engineering#safety' AS link,
-    SUM(Count) AS count,
-      CASE
-    WHEN improvement = 'Leading Pedestrian Intervals (LPI)'
-      THEN 'https://raw.githubusercontent.com/rafaelmorenoco/Crash-Injury-Dashboard-Backend/main/Icons/LPI_2.png'
-    WHEN improvement = 'Rectangular Rapid Flashing Beacon (RRFB)'
-      THEN 'https://raw.githubusercontent.com/rafaelmorenoco/Crash-Injury-Dashboard-Backend/main/Icons/RRFB_2.png'
-    WHEN improvement = 'Curb Extensions'
-      THEN 'https://raw.githubusercontent.com/rafaelmorenoco/Crash-Injury-Dashboard-Backend/main/Icons/CE_2.png'
-    WHEN improvement = 'Annual Safety Improvement Program (ASAP) - Intersections'
-      THEN 'https://raw.githubusercontent.com/rafaelmorenoco/Crash-Injury-Dashboard-Backend/main/Icons/intersection.png'
-    ELSE NULL
-  END AS icon
-FROM interventions.interventions
-GROUP BY improvement;
-```
-
 ```sql barchart_mode
 WITH 
     combinations AS (
