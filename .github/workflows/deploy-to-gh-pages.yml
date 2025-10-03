@@ -9,10 +9,11 @@ jobs:
   build:
     runs-on: ubuntu-latest
     env:
-      NODE_OPTIONS: '--max-old-space-size=8192' # Increase memory limit for Node.js
+      NODE_OPTIONS: '--max-old-space-size=12288' # Increased to 12GB
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+      
       - name: Install Node.js
         uses: actions/setup-node@v4
         with:
@@ -22,10 +23,10 @@ jobs:
       - name: Install dependencies
         run: npm install
 
-      - name: build
+      - name: Build
         env:
           BASE_PATH: '/${{ github.event.repository.name }}'
-          ## Add and uncomment any environment variables here
+          NODE_OPTIONS: '--max-old-space-size=12288' # Also set here for build step
           EVIDENCE_SOURCE__ANC__FILENAME: ${{ secrets.EVIDENCE_SOURCE__ANC__FILENAME }}
           EVIDENCE_SOURCE__CRASHES__FILENAME: ${{ secrets.EVIDENCE_SOURCE__CRASHES__FILENAME }}
           EVIDENCE_SOURCE__DC_BOUNDARY__FILENAME: ${{ secrets.EVIDENCE_SOURCE__DC_BOUNDARY__FILENAME }}
