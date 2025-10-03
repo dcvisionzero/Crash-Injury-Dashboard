@@ -29,6 +29,49 @@ FROM crashes.crashes
 GROUP BY 1
 ```
 
+```sql Impairment
+SELECT
+    'Suspected Impairment' AS Impairment,
+    SuspectedImpaired AS "Suspected Impairment",
+    SUM(COUNT) AS Count
+FROM crashes.crashes
+WHERE replace(MODE, '*', '') IN ${inputs.multi_mode_dd.value}
+AND SEVERITY = 'Fatal'
+AND REPORTDATE BETWEEN ('${inputs.date_range.start}'::DATE) AND (('${inputs.date_range.end}'::DATE) + INTERVAL '1 day')
+AND AGE BETWEEN ${inputs.min_age.value}
+                    AND (
+                        CASE 
+                            WHEN ${inputs.min_age.value} <> 0 
+                            AND ${inputs.max_age.value} = 120
+                            THEN 119
+                            ELSE ${inputs.max_age.value}
+                        END
+                        )
+GROUP BY SuspectedImpaired;
+```
+
+```sql Speeding
+SELECT
+    'Suspected Speeding   ' AS Speeding,
+    SuspectedSpeeding AS "Suspected Speeding",
+    SUM(COUNT) AS Count
+FROM crashes.crashes
+WHERE replace(MODE, '*', '') IN ${inputs.multi_mode_dd.value}
+  AND SEVERITY = 'Fatal'
+  AND REPORTDATE BETWEEN ('${inputs.date_range.start}'::DATE) 
+                      AND (('${inputs.date_range.end}'::DATE) + INTERVAL '1 day')
+  AND AGE BETWEEN ${inputs.min_age.value}
+              AND (
+                  CASE 
+                      WHEN ${inputs.min_age.value} <> 0 
+                       AND ${inputs.max_age.value} = 120
+                      THEN 119
+                      ELSE ${inputs.max_age.value}
+                  END
+              )
+GROUP BY SuspectedSpeeding;
+```
+
 ```sql unique_hin
 select 
     GIS_ID,
@@ -273,6 +316,37 @@ As of <Value data={last_record} column="latest_record"/> there <Value data={yoy_
             <Column id=Age/>
             <Column id=ADDRESS wrap=true/>
         </DataTable>
+        <BarChart 
+          data={Speeding}
+          chartAreaHeight=45
+          x=Speeding
+          y=Count
+          xLabelWrap={true}
+          swapXY=true
+          yFmt=pct0
+          series="Suspected Speeding"
+          labels={true}
+          type=stacked100
+          downloadableData=false
+          downloadableImage=false
+          leftPadding={10} 
+        />
+        <BarChart 
+          data={Impairment}
+          chartAreaHeight=45
+          x=Impairment
+          y=Count
+          xLabelWrap={true}
+          swapXY=true
+          yFmt=pct0
+          series="Suspected Impairment"
+          labels={true}
+          type=stacked100
+          downloadableData=false
+          downloadableImage=false
+          leftPadding={10} 
+          legend=false
+        />
     </Group>
 </Grid>
 

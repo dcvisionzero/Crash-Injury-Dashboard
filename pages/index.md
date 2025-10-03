@@ -1961,7 +1961,7 @@ description="By default, there is a two-day lag after the latest update"
         <Alert status="positive">
           <div markdown style="font-size: 14px;">
 
-            The District uses the Safe System Approach to eliminate roadway deaths and serious injuries, focusing on safe people, safe streets, safe vehicles, safe speeds, and post-crash care. Many District agencies have roles to play. Learn more: [Safe System Approach](/SSA/).
+            Since Mayor Bowser launched Vision Zero in 2014, the District has transformed how we design and use our streets, strengthening laws, expanding education, redesigning roads and intersections, lowering speed limits, and increasing enforcement to make travel safer for everyone. Learn more: [Progress Timeline](/Progress/).
 
           </div>
           <div markdown style="font-size: 14px;">
@@ -2050,7 +2050,7 @@ description="By default, there is a two-day lag after the latest update"
         <Alert status="positive">
           <div markdown style="font-size: 14px;">
 
-            The District uses the Safe System Approach to eliminate roadway deaths and serious injuries, focusing on safe people, safe streets, safe vehicles, safe speeds, and post-crash care. Many District agencies have roles to play. Learn more: [2022 Update](https://visionzero.dc.gov/pages/2022-update).
+            Since Mayor Bowser launched Vision Zero in 2014, the District has transformed how we design and use our streets, strengthening laws, expanding education, redesigning roads and intersections, lowering speed limits, and increasing enforcement to make travel safer for everyone. [Progress Timeline](/Progress/).
 
           </div>
           <div markdown style="font-size: 14px;">
