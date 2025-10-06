@@ -63,9 +63,9 @@ Select any year to view the key efforts and initiatives the District has underta
         ** ‣ Vision Zero Grants**: Announced $500,000 in grants to enhance transportation safety initiatives. 
       </AccordionItem>
 
-      <AccordionItem title="2019 Enhanced Progress and Commitments to Vision Zero">
+      <AccordionItem title="2019 Commitments to Vision Zero">
         <span slot="title" class="text-lg font-bold">
-        • 2019 Enhanced Progress and Commitments to Vision Zero </span>
+        • 2019 Commitments to Vision Zero </span>
 
         ** ‣ Making Safe Infrastructure the Standard**: The District made high-visibility crosswalks the standard and rolled out No Turn On Red at 100 intersections. Today, the District has No Turn on Red signs and enforcement at nearly 70% of intersections, and Right Turn restrictions are enforced by automated safety cameras at dozens of locations.
         
@@ -76,9 +76,9 @@ Select any year to view the key efforts and initiatives the District has underta
 
   <Group>
     <Accordion>
-      <AccordionItem title="2020 Speed Limit Reduction & Innovation During the Pandemic">
+      <AccordionItem title="2020 Innovation During the Pandemic">
         <span slot="title" class="text-lg font-bold">
-        • 2020 Speed Limit Reduction & Innovation During the Pandemic </span>
+        • 2020 Innovation During the Pandemic </span>
 
         ** ‣ “20 Is Plenty” and Lowered Speed Limits**: Mayor Bowser announced plans to permanently lower the default speed limit on all of the District’s streets to 20 mph unless otherwise signed. Thousands of miles of local street speed limits were reduced from 25 mph to 20 mph. Throughout the District, speeds on major streets have been lowered from 30 mph to 25 mph—lower speed limits have been shown to decrease dangerous speeding and the number of severe crashes.
         
@@ -100,16 +100,16 @@ Select any year to view the key efforts and initiatives the District has underta
         ** ‣ Automated Enforcement Moves**: The Automated enforcement program moves from MPD to DDOT to guide efforts to safety-critical locations and provide a more data-driven approach to camera placement.
       </AccordionItem>
 
-      <AccordionItem title="2022 Vision Zero Update and Safe System Approach">
+      <AccordionItem title="2022 Vision Zero Update">
         <span slot="title" class="text-lg font-bold">
-        • 2022 Vision Zero Update and Safe System Approach </span>
+        • 2022 Vision Zero Update </span>
 
         ** ‣ Vision Zero 2022 Update**: Adopted the Safe System approach for the District following USDOT’s lead, emphasized fair distribution of safety investments, focusing on high-risk corridors and vulnerable communities. The 2022 Update also amended the District’s High Injury Network with a more robust methodology and increased institutional focus on those streets.
       </AccordionItem>
 
-      <AccordionItem title="2023 Multi-Agency Efforts and Innovative Approaches">
+      <AccordionItem title="2023 Multi-Agency Efforts">
         <span slot="title" class="text-lg font-bold">
-        • 2023 Multi-Agency Efforts and Innovative Approaches </span>
+        • 2023 Multi-Agency Efforts </span>
 
         ** ‣ Enhancing the Multi-Agency Approach**: The DC Highway Safety Office and Vision Zero Office moved out of DDOT and joined the Executive Office of the Mayor.
         
