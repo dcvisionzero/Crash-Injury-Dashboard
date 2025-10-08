@@ -7,16 +7,6 @@ queries:
 sidebar_position: 1
 ---
 
-<Details title="About this dashboard">
-
-    This dashboard shows traffic fatalities in the District of Columbia and can be filtered from 2017-present. Following a fatal crash, the DDOT team visits the site and, in coordination with The Metropolitan Police Department's (MPD) Major Crash Investigation Unit, determines if there are any short-term measures that DDOT can install to improve safety for all roadway users. Starting in 2021, site visit findings and follow-up can be found in the docked window on the right for each fatality.
-    
-    Adjust the selection for Road User, Date Range, and Age filters to refine the results in the map nad table. All charts will update to reflect the fatalities affected by the filters. 
-    
-    Data are updated twice: first, as soon as the Vision Zero Office receives a fatality memo from the Metropolitan Police Department (MPD) and second, after a crash site visit has been completed by DDOT.
-
-</Details>
-
 ```sql fatality_with_link
 select *, '/fatalities/' || OBJECTID as link
 from ${fatality}
@@ -31,29 +21,8 @@ GROUP BY 1
 
 ```sql Impairment
 SELECT
-    'Suspected Impairment' AS Impairment,
-    SuspectedImpaired AS "Suspected Impairment",
-    SUM(COUNT) AS Count
-FROM crashes.crashes
-WHERE replace(MODE, '*', '') IN ${inputs.multi_mode_dd.value}
-AND SEVERITY = 'Fatal'
-AND REPORTDATE BETWEEN ('${inputs.date_range.start}'::DATE) AND (('${inputs.date_range.end}'::DATE) + INTERVAL '1 day')
-AND AGE BETWEEN ${inputs.min_age.value}
-                    AND (
-                        CASE 
-                            WHEN ${inputs.min_age.value} <> 0 
-                            AND ${inputs.max_age.value} = 120
-                            THEN 119
-                            ELSE ${inputs.max_age.value}
-                        END
-                        )
-GROUP BY SuspectedImpaired;
-```
-
-```sql Speeding
-SELECT
-    'Suspected Speeding   ' AS Speeding,
-    SuspectedSpeeding AS "Suspected Speeding",
+    'Suspected Impairment*' AS Impairment,
+    UPPER(substr(SuspectedImpaired, 1, 1)) || LOWER(substr(SuspectedImpaired, 2)) AS SuspectedImpaired,
     SUM(COUNT) AS Count
 FROM crashes.crashes
 WHERE replace(MODE, '*', '') IN ${inputs.multi_mode_dd.value}
@@ -69,7 +38,54 @@ WHERE replace(MODE, '*', '') IN ${inputs.multi_mode_dd.value}
                       ELSE ${inputs.max_age.value}
                   END
               )
-GROUP BY SuspectedSpeeding;
+GROUP BY
+    UPPER(substr(SuspectedImpaired, 1, 1)) || LOWER(substr(SuspectedImpaired, 2));
+```
+
+```sql Speeding
+SELECT
+    'Suspected Speeding** ' AS Speeding,
+    UPPER(substr(SuspectedSpeeding, 1, 1)) || LOWER(substr(SuspectedSpeeding, 2)) AS SuspectedSpeeding,
+    SUM(COUNT) AS Count
+FROM crashes.crashes
+WHERE replace(MODE, '*', '') IN ${inputs.multi_mode_dd.value}
+  AND SEVERITY = 'Fatal'
+  AND REPORTDATE BETWEEN ('${inputs.date_range.start}'::DATE) 
+                      AND (('${inputs.date_range.end}'::DATE) + INTERVAL '1 day')
+  AND AGE BETWEEN ${inputs.min_age.value}
+              AND (
+                  CASE 
+                      WHEN ${inputs.min_age.value} <> 0 
+                       AND ${inputs.max_age.value} = 120
+                      THEN 119
+                      ELSE ${inputs.max_age.value}
+                  END
+              )
+GROUP BY
+    UPPER(substr(SuspectedSpeeding, 1, 1)) || LOWER(substr(SuspectedSpeeding, 2));
+```
+
+```sql HitAndRun
+SELECT
+    'Hit and Run                  ' AS HitAndRunLabel,
+    UPPER(substr(HitAndRun, 1, 1)) || LOWER(substr(HitAndRun, 2)) AS HitAndRun,
+    SUM(COUNT) AS Count
+FROM crashes.crashes
+WHERE replace(MODE, '*', '') IN ${inputs.multi_mode_dd.value}
+  AND SEVERITY = 'Fatal'
+  AND REPORTDATE BETWEEN ('${inputs.date_range.start}'::DATE) 
+                      AND (('${inputs.date_range.end}'::DATE) + INTERVAL '1 day')
+  AND AGE BETWEEN ${inputs.min_age.value}
+              AND (
+                  CASE 
+                      WHEN ${inputs.min_age.value} <> 0 
+                       AND ${inputs.max_age.value} = 120
+                      THEN 119
+                      ELSE ${inputs.max_age.value}
+                  END
+              )
+GROUP BY
+    UPPER(substr(HitAndRun, 1, 1)) || LOWER(substr(HitAndRun, 2));
 ```
 
 ```sql unique_hin
@@ -280,7 +296,7 @@ As of <Value data={last_record} column="latest_record"/> there <Value data={yoy_
             Each point on the map represents an fatality. Fatality incidents can overlap in the same spot.
         </Note>
         <BaseMap
-            height=450
+            height=490
             startingZoom=11
         >
             <Points data={inc_map} lat=LATITUDE long=LONGITUDE pointName=MODE value=SEVERITY colorPalette={['#ff5a53']} ignoreZoom=true
@@ -317,21 +333,6 @@ As of <Value data={last_record} column="latest_record"/> there <Value data={yoy_
             <Column id=ADDRESS wrap=true/>
         </DataTable>
         <BarChart 
-          data={Speeding}
-          chartAreaHeight=45
-          x=Speeding
-          y=Count
-          xLabelWrap={true}
-          swapXY=true
-          yFmt=pct0
-          series="Suspected Speeding"
-          labels={true}
-          type=stacked100
-          downloadableData=false
-          downloadableImage=false
-          leftPadding={10} 
-        />
-        <BarChart 
           data={Impairment}
           chartAreaHeight=45
           x=Impairment
@@ -339,17 +340,69 @@ As of <Value data={last_record} column="latest_record"/> there <Value data={yoy_
           xLabelWrap={true}
           swapXY=true
           yFmt=pct0
-          series="Suspected Impairment"
+          series=SuspectedImpaired
+          labels={true}
+          type=stacked100
+          downloadableData=false
+          downloadableImage=false
+          leftPadding={10} 
+          seriesOrder={['Yes','No','Unknown']}
+        />
+        <BarChart 
+          data={Speeding}
+          chartAreaHeight=30
+          x=Speeding
+          y=Count
+          xLabelWrap={true}
+          swapXY=true
+          yFmt=pct0
+          series=SuspectedSpeeding
           labels={true}
           type=stacked100
           downloadableData=false
           downloadableImage=false
           leftPadding={10} 
           legend=false
+          yAxisLabels=false
+          seriesOrder={['Yes','No','Unknown']}
+        />
+        <BarChart 
+          data={HitAndRun}
+          chartAreaHeight=30
+          x=HitAndRunLabel
+          y=Count
+          xLabelWrap={true}
+          swapXY=true
+          yFmt=pct0
+          series=HitAndRun
+          labels={true}
+          type=stacked100
+          downloadableData=false
+          downloadableImage=false
+          leftPadding={10} 
+          legend=false
+          yAxisLabels=false
+          seriesOrder={['Yes','No']}
         />
     </Group>
 </Grid>
 
 <Note>
+    *The determination of "Suspected Impairment" is preliminary. It may apply to either party involved in a crash. If the crash is handled by USPP, the determination is set as "Unknown". If the crash is a hit-and-run, the determination is also set as "Unknown".
+</Note>
+<Note>
+    **The determination of "Suspected Speeding" is preliminary. It may apply to either party involved in a crash. If the crash is handled by USPP, the determination is set as "Unknown".
+</Note>
+<Note>
     The latest crash record in the dataset is from <Value data={last_record} column="latest_record"/> and the data was last updated on <Value data={last_record} column="latest_update"/> hrs.
 </Note>
+
+<Details title="About this dashboard">
+
+    This dashboard shows traffic fatalities in the District of Columbia and can be filtered from 2017-present. Following a fatal crash, the DDOT team visits the site and, in coordination with The Metropolitan Police Department's (MPD) Major Crash Investigation Unit, determines if there are any short-term measures that DDOT can install to improve safety for all roadway users. Starting in 2021, site visit findings and follow-up can be found in the docked window on the right for each fatality.
+    
+    Adjust the selection for Road User, Date Range, and Age filters to refine the results in the map nad table. All charts will update to reflect the fatalities affected by the filters. 
+    
+    Data are updated twice: first, as soon as the Vision Zero Office receives a fatality memo from the Metropolitan Police Department (MPD) and second, after a crash site visit has been completed by DDOT.
+
+</Details>

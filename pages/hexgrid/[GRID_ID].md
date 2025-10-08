@@ -74,6 +74,7 @@ GROUP BY
 
 ```sql incidents
 SELECT
+    'CCN-' || CAST(CCN AS VARCHAR) AS CCN,
     MODE,
     SEVERITY,
     ADDRESS,
@@ -95,6 +96,7 @@ AND AGE BETWEEN ${inputs.min_age.value}
                         END
                         )
 GROUP BY
+    CCN,
     MODE,
     SEVERITY,
     ADDRESS,
@@ -210,6 +212,7 @@ The selection for <b>Severity</b> is: <b><Value data={mode_severity_selection} c
                 {id:'MODE', showColumnName:false, fmt:'id', valueClass:'text-l font-semibold'},
                 {id:'REPORTDATE', showColumnName:false, fmt:'mm/dd/yy hh:mm'},
                 {id:'ADDRESS', showColumnName:false, fmt:'id'},
+                {id:'CCN', showColumnName:false, fmt:'CCN'},
                 {id:'Count'}
             ]}/>
           <Areas data={unique_hin} geoJsonUrl='https://raw.githubusercontent.com/rafaelmorenoco/Crash-Injury-Dashboard-Frontend/main/static/High_Injury_Network.geojson' geoId=GIS_ID areaCol=GIS_ID borderColor=#9d00ff color=#1C00ff00/ borderWidth=1.5 ignoreZoom=true

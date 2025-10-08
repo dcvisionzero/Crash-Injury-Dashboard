@@ -8,32 +8,32 @@ sidebar_position: 2
 ---
 
 ```sql unique_mode
-select 
+SELECT 
     MODE
-from crashes.crashes
-group by 1
+FROM crashes.crashes
+GROUP BY 1
 ```
 
 ```sql unique_severity
-select 
+SELECT 
     SEVERITY
-from crashes.crashes
-group by 1
+FROM crashes.crashes
+GROUP BY 1
 ```
 
 ```sql unique_hex
-select 
+SELECT  
     GRID_ID
-from hexgrid.crash_hexgrid
-group by 1
+FROM hexgrid.crash_hexgrid
+GROUP BY 1
 ```
 
 ```sql unique_hin
-select 
+SELECT 
     GIS_ID,
     ROUTENAME
-from hin.hin
-group by all
+FROM hin.hin
+GROUP BY all
 ```
 
 ```sql day_time
@@ -256,6 +256,38 @@ LEFT JOIN (
                                     ELSE ${inputs.max_age.value}
                                 END
                                 )
+    GROUP BY c.GRID_ID
+) AS i
+ON h.GRID_ID = i.GRID_ID;
+```
+
+```sql hex_with_link
+SELECT 
+    h.*,
+    '/Crash-Injury-Dashboard/hexgrid/' || h.GRID_ID AS link,
+    i.count,
+    i.ccns
+FROM ${hex} AS h
+LEFT JOIN (
+    SELECT 
+        c.GRID_ID,
+        SUM(c.COUNT) AS count,
+        string_agg(DISTINCT CAST(c.CCN AS VARCHAR), ', ' ORDER BY c.CCN) AS ccns
+    FROM crashes.crashes c
+    WHERE 
+        c.MODE IN ${inputs.multi_mode_dd.value}
+        AND c.SEVERITY IN ${inputs.multi_severity.value}
+        AND c.REPORTDATE BETWEEN ('${inputs.date_range.start}'::DATE)
+        AND (('${inputs.date_range.end}'::DATE) + INTERVAL '1 day')
+        AND c.AGE BETWEEN ${inputs.min_age.value}
+                        AND (
+                            CASE 
+                                WHEN ${inputs.min_age.value} <> 0 
+                                 AND ${inputs.max_age.value} = 120
+                                THEN 119
+                                ELSE ${inputs.max_age.value}
+                            END
+                        )
     GROUP BY c.GRID_ID
 ) AS i
 ON h.GRID_ID = i.GRID_ID;
@@ -593,6 +625,7 @@ FROM date_info;
     <Group>
         <DataTable data={hex_with_link} title="Hexagon Ranking of {`${mode_severity_selection[0].SEVERITY_SELECTION}`} for {`${mode_severity_selection[0].MODE_SELECTION}`} ({`${selected_date_range[0].current_period_range}`})" search=true link=link rows=3 rowShading=true sort="count desc">
             <Column id=GRID_ID title="Hexagon ID"/>
+            <Column id=ccns title="CCN" wrap={true}/>
             <Column id=count contentType=colorscale/>
         </DataTable>
     </Group>
