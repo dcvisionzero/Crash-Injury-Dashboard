@@ -163,7 +163,7 @@ WITH
     )
 SELECT 
     mas.SMD,
-    '/SMD/' || mas.SMD AS link,
+    '/smd/' || mas.SMD AS link,
     COALESCE(cp.sum_count, 0) AS current_period_sum, 
     COALESCE(pp.sum_count, 0) AS prior_period_sum, 
     COALESCE(cp.sum_count, 0) - COALESCE(pp.sum_count, 0) AS difference,
@@ -188,7 +188,7 @@ LEFT JOIN
 SELECT
     a.SMD,
     COALESCE(SUM(c.COUNT), 0) AS count,
-    '/SMD/' || a.SMD AS link
+    '/Crash-Injury-Dashboard/smd/' || a.SMD AS link
 FROM smd.smd_2023 a
 LEFT JOIN crashes.crashes c 
     ON a.SMD = c.SMD
