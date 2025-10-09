@@ -76,9 +76,9 @@ Select any year to view the key efforts and initiatives the District has underta
 
   <Group>
     <Accordion>
-      <AccordionItem title="2020 Innovation During the Pandemic">
+      <AccordionItem title="2020 Pandemic Response">
         <span slot="title" class="text-lg font-bold">
-        • 2020 Innovation During the Pandemic </span>
+        • 2020 Pandemic Response </span>
 
         ** ‣ “20 Is Plenty” and Lowered Speed Limits**: Mayor Bowser announced plans to permanently lower the default speed limit on all of the District’s streets to 20 mph unless otherwise signed. Thousands of miles of local street speed limits were reduced from 25 mph to 20 mph. Throughout the District, speeds on major streets have been lowered from 30 mph to 25 mph—lower speed limits have been shown to decrease dangerous speeding and the number of severe crashes.
         

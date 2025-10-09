@@ -7,6 +7,8 @@ queries:
 sidebar_position: 4
 ---
 
+Advisory Neighborhood Commissions (ANCs)
+
 ```sql unique_mode
 select 
     MODE
@@ -47,7 +49,7 @@ group by 1
 SELECT
     a.ANC,
     COALESCE(SUM(c.COUNT), 0) AS count,
-    '/Crash-Injury-Dashboard/anc/' || a.ANC AS link
+    '/ANC/' || a.ANC AS link
 FROM anc.anc_2023 a
 LEFT JOIN crashes.crashes c 
     ON a.ANC = c.ANC
@@ -192,7 +194,7 @@ WITH
     )
 SELECT 
     mas.ANC,
-    '/anc/' || mas.ANC AS link,
+    '/ANC/' || mas.ANC AS link,
     COALESCE(cp.sum_count, 0) AS current_period_sum, 
     COALESCE(pp.sum_count, 0) AS prior_period_sum, 
     COALESCE(cp.sum_count, 0) - COALESCE(pp.sum_count, 0) AS difference,

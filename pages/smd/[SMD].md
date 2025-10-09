@@ -90,6 +90,8 @@ SELECT
     LATITUDE,
     LONGITUDE,
     REPORTDATE,
+    SMD,
+    CCN,
     ADDRESS
 FROM crashes.crashes
 WHERE MODE IN ${inputs.multi_mode_dd.value}
@@ -192,8 +194,10 @@ The selection for <b>Severity</b> is: <b><Value data={mode_severity_selection} c
           <Points data={incidents} lat=LATITUDE long=LONGITUDE value=SEVERITY pointName=MODE opacity=1 colorPalette={['#ffdf00','#ff9412','#ff5a53']} ignoreZoom=true
             tooltip={[
                 {id:'MODE', showColumnName:false, fmt:'id', valueClass:'text-l font-semibold'},
+                {id:'CCN', showColumnName:false, fmt:'id'},
                 {id:'REPORTDATE', showColumnName:false, fmt:'mm/dd/yy hh:mm'},
-                {id:'ADDRESS', showColumnName:false, fmt:'id'}
+                {id:'ADDRESS', showColumnName:false, fmt:'id'},
+                {id:'SMD', showColumnName:false, fmt:'id'}
             ]}/>
           <Areas data={unique_hin} geoJsonUrl='https://raw.githubusercontent.com/rafaelmorenoco/Crash-Injury-Dashboard-Frontend/main/static/High_Injury_Network.geojson' geoId=GIS_ID areaCol=GIS_ID borderColor=#9d00ff color=#1C00ff00/ borderWidth=1.5 ignoreZoom=true
           tooltip={[

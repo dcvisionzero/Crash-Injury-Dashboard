@@ -8,7 +8,7 @@ sidebar_position: 1
 ---
 
 ```sql fatality_with_link
-select *, '/fatalities/' || OBJECTID as link
+select *, '/fatalities/' || DeathCaseID as link
 from ${fatality}
 ```
 
@@ -67,7 +67,7 @@ GROUP BY
 
 ```sql HitAndRun
 SELECT
-    'Hit and Run                  ' AS HitAndRunLabel,
+    'Hit-and-Run                  ' AS HitAndRunLabel,
     UPPER(substr(HitAndRun, 1, 1)) || LOWER(substr(HitAndRun, 2)) AS HitAndRun,
     SUM(COUNT) AS Count
 FROM crashes.crashes
@@ -175,12 +175,13 @@ SELECT
     SEVERITY,
     ADDRESS,
     CCN,
-    replace(MODE, '*', '') || '-' || CCN AS mode_ccn,
+    DeathCaseID,
+    replace(MODE, '*', '') || '-' || CCN || ' ' || DeathCaseID AS mode_ccn,
     CASE
         WHEN CAST(AGE AS INTEGER) = 120 THEN '-'
         ELSE CAST(CAST(AGE AS INTEGER) AS VARCHAR)
     END AS Age,
-    '/fatalities/' || OBJECTID AS link
+    '/fatalities/' || DeathCaseID AS link
 FROM crashes.crashes
 WHERE replace(MODE, '*', '') IN ${inputs.multi_mode_dd.value}
 AND SEVERITY = 'Fatal'
@@ -302,6 +303,7 @@ As of <Value data={last_record} column="latest_record"/> there <Value data={yoy_
             <Points data={inc_map} lat=LATITUDE long=LONGITUDE pointName=MODE value=SEVERITY colorPalette={['#ff5a53']} ignoreZoom=true
             tooltip={[
                 {id:'MODE', showColumnName:false, fmt:'id', valueClass:'text-l font-semibold'},
+                {id:'DeathCaseID', showColumnName:false, fmt:'id'},
                 {id:'CCN',showColumnName:false, fmt:'id'},
                 {id:'REPORTDATE', showColumnName:false, fmt:'mm/dd/yy hh:mm'},
                 {id:'ADDRESS', showColumnName:false, fmt:'id'}
@@ -328,7 +330,7 @@ As of <Value data={last_record} column="latest_record"/> there <Value data={yoy_
         </Note>
         <DataTable data={inc_map} link=link wrapTitles=true rowShading=true search=true rows=8>
             <Column id=REPORTDATE title="Date" fmt='mm/dd/yy hh:mm' wrap=true/>
-            <Column id=mode_ccn title="Road User - CCN" wrap=true/>
+            <Column id=mode_ccn title="Road User - CCN - Case" wrap=true/>
             <Column id=Age/>
             <Column id=ADDRESS wrap=true/>
         </DataTable>

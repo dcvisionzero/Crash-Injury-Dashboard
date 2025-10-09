@@ -6,7 +6,7 @@ queries:
 # <Value data={Tittle} column=ADDRESS/> - <Value data={Tittle} column=Date/> hrs.
 
 ```sql fatality_with_link
-select *, '/fatalities/' || OBJECTID as link
+select *, '/fatalities/' || DeathCaseID as link
 from ${fatality}
 ```
 
@@ -36,7 +36,7 @@ group by all
           LPAD(EXTRACT(MINUTE FROM REPORTDATE)::TEXT, 2, '0')
     ) AS Date
   FROM crashes.crashes
-  WHERE OBJECTID = '${params.OBJECTID}'
+  WHERE DeathCaseID = '${params.DeathCaseID}'
 ```
 
 ```sql pivot_table
@@ -50,13 +50,13 @@ group by all
           LPAD(EXTRACT(MINUTE FROM REPORTDATE)::TEXT, 2, '0')
       ) AS column_value
   FROM crashes.crashes
-  WHERE OBJECTID = '${params.OBJECTID}'
+  WHERE DeathCaseID = '${params.DeathCaseID}'
 
   UNION ALL
 
   SELECT 'Road User', replace(MODE, '*', '') AS MODE
   FROM crashes.crashes
-  WHERE OBJECTID = '${params.OBJECTID}'
+  WHERE DeathCaseID = '${params.DeathCaseID}'
 
   UNION ALL
 
@@ -66,61 +66,67 @@ group by all
         ELSE CAST(CAST(AGE AS INTEGER) AS VARCHAR)
     END AS AGE
   FROM crashes.crashes
-  WHERE OBJECTID = '${params.OBJECTID}'
+  WHERE DeathCaseID = '${params.DeathCaseID}'
 
   UNION ALL
 
   SELECT 'CCN', CCN::TEXT
   FROM crashes.crashes
-  WHERE OBJECTID = '${params.OBJECTID}'
+  WHERE DeathCaseID = '${params.DeathCaseID}'
 
   UNION ALL
 
   SELECT 'Address', ADDRESS
   FROM crashes.crashes
-  WHERE OBJECTID = '${params.OBJECTID}'
+  WHERE DeathCaseID = '${params.DeathCaseID}'
 
   UNION ALL
 
   SELECT 'Ward', WARD
   FROM crashes.crashes
-  WHERE OBJECTID = '${params.OBJECTID}'
+  WHERE DeathCaseID = '${params.DeathCaseID}'
 
   UNION ALL
 
   SELECT 'Striking Vehicle', StrinkingVehicle
   FROM crashes.crashes
-  WHERE OBJECTID = '${params.OBJECTID}'
+  WHERE DeathCaseID = '${params.DeathCaseID}'
 
   UNION ALL
 
   SELECT 'Second Striking Vehicle/Object', SecondStrikingVehicleObject
   FROM crashes.crashes
-  WHERE OBJECTID = '${params.OBJECTID}'
+  WHERE DeathCaseID = '${params.DeathCaseID}'
 
   UNION ALL
 
-  SELECT 'Site Visit Status', SiteVisitStatus
+  SELECT 'Hit-and-Run', UPPER(substr(HitAndRun, 1, 1)) || LOWER(substr(HitAndRun, 2))
   FROM crashes.crashes
-  WHERE OBJECTID = '${params.OBJECTID}'
+  WHERE DeathCaseID = '${params.DeathCaseID}'
+
+  UNION ALL
+
+  SELECT 'Site Visit Status', UPPER(substr(SiteVisitStatus, 1, 1)) || LOWER(substr(SiteVisitStatus, 2))
+  FROM crashes.crashes
+  WHERE DeathCaseID = '${params.DeathCaseID}'
 
   UNION ALL
 
   SELECT 'Factors Discussed at Site Visit', FactorsDiscussedAtSiteVisit
   FROM crashes.crashes
-  WHERE OBJECTID = '${params.OBJECTID}'
+  WHERE DeathCaseID = '${params.DeathCaseID}'
 
-UNION ALL
+  UNION ALL
 
   SELECT 'Actions Planned and Completed', ActionsPlannedAndCompleted
   FROM crashes.crashes
-  WHERE OBJECTID = '${params.OBJECTID}'
+  WHERE DeathCaseID = '${params.DeathCaseID}'
 
   UNION ALL
 
   SELECT 'Actions Under Consideration', ActionsUnderConsideration
   FROM crashes.crashes
-  WHERE OBJECTID = '${params.OBJECTID}';
+  WHERE DeathCaseID = '${params.DeathCaseID}';
 ```
 
 ```sql incidents
@@ -129,7 +135,7 @@ UNION ALL
       LATITUDE,
       LONGITUDE
   FROM crashes.crashes
-  WHERE OBJECTID = '${params.OBJECTID}'
+  WHERE DeathCaseID = '${params.DeathCaseID}'
   GROUP BY all
 ```
 

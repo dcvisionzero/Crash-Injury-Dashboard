@@ -54,7 +54,7 @@ group by 1
 ```sql smd_map
 SELECT 
     smd_2023.SMD,
-    '/Crash-Injury-Dashboard/smd/' || smd_2023.SMD AS link,
+    '/SMD/' || smd_2023.SMD AS link,
     COALESCE(subquery.count, 0) AS count
 FROM smd.smd_2023 AS smd_2023
 LEFT JOIN (
@@ -230,7 +230,7 @@ WITH
     )
 SELECT 
     mas.SMD,
-    '/smd/' || mas.SMD AS link,
+    '/SMD/' || mas.SMD AS link,
     COALESCE(cp.sum_count, 0) AS current_period_sum, 
     COALESCE(pp.sum_count, 0) AS prior_period_sum, 
     COALESCE(cp.sum_count, 0) - COALESCE(pp.sum_count, 0) AS difference,
