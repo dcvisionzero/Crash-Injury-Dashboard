@@ -390,71 +390,6 @@ FROM yearly_counts yc
 ORDER BY yc.yr DESC;
 ```
 
-```sql ytd_month
-WITH 
-  report_date_range AS (
-    SELECT
-      CASE 
-          WHEN '${inputs.date_range.end}'::DATE >= 
-               (SELECT CAST(MAX(REPORTDATE) AS DATE) FROM crashes.crashes) 
-            THEN (SELECT MAX(REPORTDATE) FROM crashes.crashes)
-          ELSE '${inputs.date_range.end}'::DATE + INTERVAL '1 day'
-      END AS current_end_date,
-      '${inputs.date_range.start}'::DATE AS current_start_date
-  ),
-  date_info AS (
-    SELECT
-      current_start_date   AS start_date,
-      current_end_date     AS end_date,
-      EXTRACT(YEAR FROM current_end_date) AS current_year,
-      strftime(current_end_date, '%m-%d') AS month_day_end
-    FROM report_date_range
-  ),
-  years AS (
-    SELECT gs AS yr
-    FROM date_info, generate_series(current_year - 4, current_year) AS t(gs)
-  ),
-  months AS (
-    SELECT gs AS mo
-    FROM generate_series(1, 12) AS t(gs)
-  ),
-  year_month_grid AS (
-    SELECT y.yr, m.mo
-    FROM years y
-    CROSS JOIN months m
-  ),
-  monthly_counts AS (
-    SELECT
-      CAST(strftime('%Y', REPORTDATE) AS BIGINT) AS yr,
-      CAST(strftime('%m', REPORTDATE) AS BIGINT) AS mo,
-      SUM("COUNT") AS month_count
-    FROM crashes.crashes, date_info
-    WHERE CAST(strftime('%Y', REPORTDATE) AS BIGINT) BETWEEN (current_year - 4) AND current_year
-      AND crashes.SEVERITY IN ${inputs.multi_severity.value}
-      AND crashes.MODE IN ${inputs.multi_mode_dd.value}
-      AND crashes.AGE BETWEEN ${inputs.min_age.value}
-                          AND (
-                              CASE 
-                                  WHEN ${inputs.min_age.value} <> 0 
-                                  AND ${inputs.max_age.value} = 120
-                                  THEN 119
-                                  ELSE ${inputs.max_age.value}
-                              END
-                          )
-      AND strftime(REPORTDATE, '%m-%d') <= month_day_end
-    GROUP BY yr, mo
-  )
-SELECT 
-  g.yr AS Year,
-  g.mo AS Month,
-  strftime(make_date(g.yr, g.mo, 1), '%b') AS Month_Name,  -- abbreviated month name
-  COALESCE(mc.month_count, 0) AS Count
-FROM year_month_grid g
-LEFT JOIN monthly_counts mc
-  ON g.yr = mc.yr AND g.mo = mc.mo
-ORDER BY g.yr ASC, g.mo ASC;   -- oldest year first, Jan–Dec order
-```
-
 <Dropdown
     data={unique_severity} 
     name=multi_severity
@@ -636,47 +571,6 @@ end={
         </DataTable>
     </Group>
 </Grid>
-
-<script>
-  const labelConfig = {
-    label: {
-      show: true,
-      formatter: function (params) {
-        return params.value[1] === 0 ? '0' : params.value[1];
-      }
-    }
-  };
-  const defaultPalette = [
-    '#03045e','#0077b6','#00b4d8','#90e0ef','#caf0f8'
-  ];
-</script>
-
-<BarChart 
-  data={ytd_month}
-  x="Month"
-  y="Count"
-  type=grouped
-  series=Year
-  labels={true}
-  seriesorder={ytd_month.Year}
-  echartsOptions={{
-    color: defaultPalette.slice().reverse(),
-    xAxis: {
-      type: 'category',
-      axisLabel: {
-        rotate: 90,
-        formatter: function (value) {
-          const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-          return months[value - 1];
-        }
-      }
-    },
-    series: [
-      labelConfig, labelConfig, labelConfig, labelConfig, labelConfig
-    ]
-  }}
->
-</BarChart>
 
 <Note>
     The latest crash record in the dataset is from <Value data={last_record} column="latest_record"/> and the data was last updated on <Value data={last_record} column="latest_update"/> hrs. This lag factors into prior period comparisons.

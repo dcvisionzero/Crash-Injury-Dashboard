@@ -1,6 +1,6 @@
 ---
 title: Progress Timeline
-sidebar_position: 10
+sidebar_position: 11
 ---
 
 The District first adopted the Vision Zero approach in 2015. Vision Zero emphasizes prioritizing human life, employing a data-driven process to target resources toward the most critical locations, and advocating for a holistic, multi-agency collaborative approach.

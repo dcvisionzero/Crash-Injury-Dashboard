@@ -3,7 +3,7 @@ title: Age Distribution
 queries:
    - last_record: last_record.sql
    - age_range: age_range.sql
-sidebar_position: 8
+sidebar_position: 9
 ---
 
 ```sql unique_mode

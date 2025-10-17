@@ -3,7 +3,7 @@ title: High Injury Network
 queries:
    - last_record: last_record.sql
    - age_range: age_range.sql
-sidebar_position: 9
+sidebar_position: 10
 ---
 
 ```sql unique_mode
