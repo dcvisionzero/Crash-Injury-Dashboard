@@ -1,13 +1,13 @@
 ---
-title: DC Vision Zero Traffic Fatalities
+title: Report on Traffic Fatalities and Major Injuries
 queries:
    - last_record: last_record.sql
    - age_range: age_range.sql
 sidebar_link: false
 ---
 
-- As of <Value data={last_record} column="latest_record"/> there <Value data={yoy_text_fatal} column="has_have"/> been <Value data={yoy_text_fatal} column="current_year_sum" agg=sum/> <Value data={yoy_text_fatal} column="fatality"/> among all road users in <Value data={yoy_text_fatal} column="current_year" fmt='####","'/>   <Value data={yoy_text_fatal} column="difference" agg=sum fmt='####' /> <Value data={yoy_text_fatal} column="difference_text"/> (<Delta data={yoy_text_fatal} column="percentage_change" fmt="+0%;-0%;0%" downIsGood=True neutralMin=-0.00 neutralMax=0.00/>) compared to the same period in <Value data={yoy_text_fatal} column="year_prior" fmt="####."/>
-- As of <Value data={last_record} column="latest_record"/> there <Value data={yoy_text_major_injury} column="has_have"/> been <Value data={yoy_text_major_injury} column="current_year_sum" agg=sum/> <Value data={yoy_text_major_injury} column="major_injury"/> among all road users in <Value data={yoy_text_major_injury} column="current_year" fmt='####","'/>   <Value data={yoy_text_major_injury} column="difference" agg=sum fmt='####' /> <Value data={yoy_text_major_injury} column="difference_text"/> (<Delta data={yoy_text_major_injury} column="percentage_change" fmt="+0%;-0%;0%" downIsGood=True neutralMin=-0.00 neutralMax=0.00/>) compared to the same period in <Value data={yoy_text_major_injury} column="year_prior" fmt="####."/>
+- As of <Value data={last_record} column="latest_record"/> there <Value data={yoy_text_fatal} column="has_have"/> been <Value data={yoy_text_fatal} column="current_year_sum" agg=sum/> **<Value data={yoy_text_fatal} column="fatality"/>** among all road users in <Value data={yoy_text_fatal} column="current_year" fmt='####","'/>   <Value data={yoy_text_fatal} column="difference" agg=sum fmt='####' /> <Value data={yoy_text_fatal} column="difference_text"/> (<Delta data={yoy_text_fatal} column="percentage_change" fmt="+0%;-0%;0%" downIsGood=True neutralMin=-0.00 neutralMax=0.00/>) compared to the same period in <Value data={yoy_text_fatal} column="year_prior" fmt="####."/>
+- As of <Value data={last_record} column="latest_record"/> there <Value data={yoy_text_major_injury} column="has_have"/> been <Value data={yoy_text_major_injury} column="current_year_sum" agg=sum/> **<Value data={yoy_text_major_injury} column="major_injury"/>** among all road users in <Value data={yoy_text_major_injury} column="current_year" fmt='####","'/>   <Value data={yoy_text_major_injury} column="difference" agg=sum fmt='####' /> <Value data={yoy_text_major_injury} column="difference_text"/> (<Delta data={yoy_text_major_injury} column="percentage_change" fmt="+0%;-0%;0%" downIsGood=True neutralMin=-0.00 neutralMax=0.00/>) compared to the same period in <Value data={yoy_text_major_injury} column="year_prior" fmt="####."/>
 
 
 ```sql unique_mode
@@ -771,7 +771,7 @@ description="By default, there is a two-day lag after the latest update"
 
   <!-- Column 1: Fatalities (YTD vs prior YTD) -->
   <Group>
-    <DataTable data={period_comp_fatal} totalRow sort="current_period_sum desc" wrapTitles rowShading title="Year Over Year Comparison of Fatalities by Road User">
+    <DataTable data={period_comp_fatal} totalRow sort="current_period_sum desc" wrapTitles rowShading title="Fatalities:">
       <Column id="MODE" title="Road User" description="*Fatal Only" wrap=true totalAgg="Total"/>
       <Column id="current_period_sum" title="{period_comp_fatal[0].current_period_range}"/>
       <Column id="prior_period_sum" title="{period_comp_fatal[0].prior_period_range}"/>
@@ -780,7 +780,7 @@ description="By default, there is a two-day lag after the latest update"
     </DataTable>
 
     <div style="font-size: 14px;">
-      <b>Percentage Breakdown of Fatalities by Road User</b>
+      <b>Percentage Breakdown:</b>
     </div>
 
     <BarChart 
@@ -803,7 +803,7 @@ description="By default, there is a two-day lag after the latest update"
 
   <!-- Column 2: Major Injuries (YTD vs prior YTD) -->
   <Group>
-      <DataTable data={period_comp_major} totalRow sort="current_period_sum desc" wrapTitles rowShading title="Year Over Year Comparison of Major Injuries by Road User">
+      <DataTable data={period_comp_major} totalRow sort="current_period_sum desc" wrapTitles rowShading title="Major Injuries:">
       <Column id="MODE" title="Road User" description="*Fatal Only" wrap=true totalAgg="Total"/>
       <Column id="current_period_sum" title="{period_comp_major[0].current_period_range}"/>
       <Column id="prior_period_sum" title="{period_comp_major[0].prior_period_range}"/>
@@ -812,7 +812,7 @@ description="By default, there is a two-day lag after the latest update"
     </DataTable>
 
     <div style="font-size: 14px;">
-      <b>Percentage Breakdown of Major Injuries by Road User</b>
+      <b>Percentage Breakdown:</b>
     </div>
 
     <BarChart 
