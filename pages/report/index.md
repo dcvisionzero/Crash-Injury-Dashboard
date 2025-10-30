@@ -1,5 +1,5 @@
 ---
-title: Report on Traffic Fatalities and Major Injuries
+title: Fatalities and Major Injuries Rundown
 queries:
    - last_record: last_record.sql
    - age_range: age_range.sql
