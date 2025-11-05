@@ -1971,7 +1971,7 @@ description="By default, there is a two-day lag after the latest update"
           </div>
           <div markdown style="font-size: 14px;">
 
-            Similarly, DDOT intentionally aligns with Vision Zero goals through safety-focused projects across all eight wards. Learn more: [Projects and Programs](https://ddot.dc.gov/page/projects-and-programs).
+            Similarly, DDOT intentionally aligns with Vision Zero goals through safety-focused projects across all eight wards. Learn more: [Projects](https://projects.ddot.dc.gov/pages/projects).
 
           </div>
         </Alert>
@@ -2060,7 +2060,7 @@ description="By default, there is a two-day lag after the latest update"
           </div>
           <div markdown style="font-size: 14px;">
 
-            Similarly, DDOT intentionally aligns with Vision Zero goals through safety-focused projects across all eight wards. Learn more: [Projects and Programs](https://ddot.dc.gov/page/projects-and-programs).
+            Similarly, DDOT intentionally aligns with Vision Zero goals through safety-focused projects across all eight wards. Learn more: [Projects](https://projects.ddot.dc.gov/pages/projects).
 
           </div>
         </Alert>

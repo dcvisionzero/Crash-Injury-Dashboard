@@ -1,5 +1,5 @@
 ---
-title: Injuries by ANC
+title: ANC Breakdown
 queries:
    - anc_link: anc_link.sql
    - last_record: last_record.sql

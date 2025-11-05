@@ -1,5 +1,5 @@
 ---
-title: Injuries by SMD
+title: SMD Breakdown
 queries:
    - smd_link: smd_link.sql
    - last_record: last_record.sql
@@ -352,9 +352,11 @@ FROM
         <div style="font-size: 14px;">
             <b>{mode_severity_selection[0].SEVERITY_SELECTION} for {mode_severity_selection[0].MODE_SELECTION} by SMD ({period_comp_smd[0].current_period_range})</b>
         </div>
+        <!--
         <Note>
             Select an SMD to zoom in and see details about crash-related injuries within that SMD.
         </Note>
+        -->
         <BaseMap
           height=450
           startingZoom=11
@@ -364,14 +366,14 @@ FROM
                 {id: 'ROUTENAME'}
             ]}
         />
-        <Areas data={smd_map} geoJsonUrl='https://raw.githubusercontent.com/rafaelmorenoco/Crash-Injury-Dashboard-Frontend/main/static/smd_2023.geojson' geoId=SMD areaCol=SMD value=count link=link min=0 opacity=0.7 borderWidth=1 borderColor='#A9A9A9'/>
+        <Areas data={smd_map} geoJsonUrl='https://raw.githubusercontent.com/rafaelmorenoco/Crash-Injury-Dashboard-Frontend/main/static/smd_2023.geojson' geoId=SMD areaCol=SMD value=count min=0 opacity=0.7 borderWidth=1 borderColor='#A9A9A9'/>
         </BaseMap>
         <Note>
             The purple lines represent DC's High Injury Network
         </Note>
     </Group>    
     <Group>
-        <DataTable data={period_comp_smd} sort="current_period_sum desc" title="Year Over Year Comparison of {`${mode_severity_selection[0].SEVERITY_SELECTION}`} for {`${mode_severity_selection[0].MODE_SELECTION}`} by SMD" search=true wrapTitles=true rowShading=true link=link>
+        <DataTable data={period_comp_smd} sort="current_period_sum desc" title="Year Over Year Comparison of {`${mode_severity_selection[0].SEVERITY_SELECTION}`} for {`${mode_severity_selection[0].MODE_SELECTION}`} by SMD" search=true wrapTitles=true rowShading=true >
             <Column id=SMD title="SMD"/>
             <Column id=current_period_sum title={`${period_comp_smd[0].current_period_range}`} />
             <Column id=prior_period_sum title={`${period_comp_smd[0].prior_period_range}`}  />

@@ -396,9 +396,11 @@ FROM
         <div style="font-size: 14px;">
             <b>{mode_severity_selection[0].SEVERITY_SELECTION} for {mode_severity_selection[0].MODE_SELECTION} by SMD within ANC {params.ANC} ({`${period_comp_smd[0].current_period_range}`})</b>
         </div>
+        <!--
         <Note>
             Select an SMD to zoom in and see more details about the crashes within it.
         </Note>
+        -->
         <BaseMap
             height=500
             startingZoom=14
@@ -408,7 +410,7 @@ FROM
                 {id: 'ROUTENAME'}
             ]}
         />
-        <Areas data={smd_map} height=650 startingZoom=13 geoJsonUrl='https://raw.githubusercontent.com/rafaelmorenoco/Crash-Injury-Dashboard-Frontend/main/static/smd_2023.geojson' geoId=SMD areaCol=SMD value=count min=0 borderWidth=1.5 borderColor='#A9A9A9' link=link
+        <Areas data={smd_map} height=650 startingZoom=13 geoJsonUrl='https://raw.githubusercontent.com/rafaelmorenoco/Crash-Injury-Dashboard-Frontend/main/static/smd_2023.geojson' geoId=SMD areaCol=SMD value=count min=0 borderWidth=1.5 borderColor='#A9A9A9'
         />
         </BaseMap>
         <Note>
@@ -416,7 +418,7 @@ FROM
         </Note>
     </Group>
     <Group>
-        <DataTable data={period_comp_smd} sort="current_period_sum desc" title="Year Over Year Comparison of {mode_severity_selection[0].SEVERITY_SELECTION} for {mode_severity_selection[0].MODE_SELECTION} by SMD within ANC {params.ANC}" wrapTitles=true rowShading=true totalRow=true link=link>
+        <DataTable data={period_comp_smd} sort="current_period_sum desc" title="Year Over Year Comparison of {mode_severity_selection[0].SEVERITY_SELECTION} for {mode_severity_selection[0].MODE_SELECTION} by SMD within ANC {params.ANC}" wrapTitles=true rowShading=true totalRow=true >
             <Column id=SMD title="SMD" totalAgg={`ANC ${unique_anc[0].ANC} Total`}/>
             <Column id=current_period_sum title={`${period_comp_smd[0].current_period_range}`} />
             <Column id=prior_period_sum title={`${period_comp_smd[0].prior_period_range}`}  />

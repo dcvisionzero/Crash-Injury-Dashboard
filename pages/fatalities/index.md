@@ -384,7 +384,7 @@ As of <Value data={last_record} column="latest_record"/> there <Value data={yoy_
           leftPadding={10} 
           legend=false
           yAxisLabels=false
-          seriesOrder={['Yes','No']}
+          seriesOrder={['Yes','No','Unknown']}
         />
     </Group>
 </Grid>

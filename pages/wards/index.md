@@ -1,5 +1,5 @@
 ---
-title: Injuries by Ward
+title: Ward Breakdown
 queries:
    - last_record: last_record.sql
    - age_range: age_range.sql
