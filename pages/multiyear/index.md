@@ -272,6 +272,101 @@ CROSS JOIN current_year_count cyc
 ORDER BY yc.yr DESC;
 ```
 
+```sql ytd_barchart
+WITH 
+  report_date_range AS (
+    SELECT
+      CASE 
+          WHEN '${inputs.date_range.end}'::DATE >= 
+               (SELECT CAST(MAX(REPORTDATE) AS DATE) FROM crashes.crashes) 
+            THEN (SELECT MAX(REPORTDATE) FROM crashes.crashes)
+          ELSE '${inputs.date_range.end}'::DATE + INTERVAL '1 day'
+      END AS current_end_date,
+      '${inputs.date_range.start}'::DATE AS current_start_date
+  ),
+  date_info AS (
+    SELECT
+      current_start_date   AS start_date,
+      current_end_date     AS end_date,
+      CASE
+        WHEN current_start_date = DATE_TRUNC('year', current_end_date)
+            AND '${inputs.date_range.end}'::DATE = current_end_date::DATE
+          THEN 'to Date'
+        ELSE
+          '('
+          || strftime(current_start_date, '%m/%d')
+          || '-'
+          || strftime(current_end_date - INTERVAL '1 day', '%m/%d')
+          || ')'
+      END                   AS date_range_label,
+      (current_end_date - current_start_date) AS date_range_days,
+      strftime(current_start_date, '%m-%d')   AS month_day_start,
+      strftime(current_end_date,   '%m-%d')   AS month_day_end,
+      EXTRACT(YEAR FROM current_end_date)     AS current_year
+    FROM report_date_range
+  ),
+  years AS (
+    SELECT CAST(year_string AS INTEGER) AS yr
+    FROM (
+      SELECT DISTINCT strftime('%Y', REPORTDATE) AS year_string
+      FROM crashes.crashes
+      WHERE strftime('%Y', REPORTDATE) BETWEEN 
+        (
+          SELECT MIN(x) 
+          FROM (VALUES ${inputs.multi_year.value}) AS t(x)
+        )
+        AND (SELECT strftime('%Y', MAX(REPORTDATE)) FROM crashes.crashes)
+    ) unique_years
+    WHERE year_string IN ${inputs.multi_year.value}
+    ORDER BY year_string DESC
+  ),
+  -- Now include severity in the grouping
+  yearly_counts AS (
+    SELECT 
+      y.yr,
+      c.SEVERITY,
+      SUM(c."COUNT") AS year_count
+    FROM years y
+    CROSS JOIN date_info d
+    JOIN crashes.crashes c
+      ON c.REPORTDATE >= CAST(y.yr || '-' || d.month_day_start AS DATE)
+     AND c.REPORTDATE <  CAST(y.yr || '-' || d.month_day_end   AS DATE) + INTERVAL '1 day'
+     AND c.SEVERITY IN ${inputs.multi_severity.value}
+     AND c.MODE IN ${inputs.multi_mode_dd.value}
+     AND c.AGE BETWEEN ${inputs.min_age.value}
+                   AND (
+                        CASE 
+                          WHEN ${inputs.min_age.value} <> 0 
+                           AND ${inputs.max_age.value} = 120
+                          THEN 119
+                          ELSE ${inputs.max_age.value}
+                        END
+                       )
+    GROUP BY y.yr, c.SEVERITY
+  ),
+  current_year_count AS (
+    SELECT yr, SEVERITY, year_count AS current_count
+    FROM yearly_counts, date_info
+    WHERE yr = current_year
+  )
+  
+SELECT 
+  yc.yr AS Year,
+  yc.SEVERITY,
+  COALESCE(yc.year_count, 0) AS Count,
+  COALESCE(cyc.current_count, 0) - COALESCE(yc.year_count, 0) AS Diff_from_current,
+  CASE 
+    WHEN COALESCE(yc.year_count, 0) = 0 THEN NULL
+    ELSE (COALESCE(cyc.current_count, 0) - COALESCE(yc.year_count, 0)) * 1.0 / yc.year_count
+  END AS Percent_Diff_from_current,
+  (SELECT date_range_label FROM date_info) AS Date_Range
+FROM yearly_counts yc
+LEFT JOIN current_year_count cyc
+  ON yc.SEVERITY = cyc.SEVERITY
+ AND cyc.yr = (SELECT current_year FROM date_info)
+ORDER BY yc.yr DESC, yc.SEVERITY;
+```
+
 ```sql cy_avg
 WITH
   report_date_range_cy AS (
@@ -390,6 +485,73 @@ FROM yearly_counts yc
 ORDER BY yc.yr DESC;
 ```
 
+```sql cy_barchart
+WITH
+  report_date_range_cy AS (
+    SELECT
+      '${inputs.date_range_cy.start}'::DATE AS cy_start_date,
+      '${inputs.date_range_cy.end}'::DATE  AS cy_end_date
+  ),
+  date_info_cy AS (
+    SELECT
+      cy_start_date,
+      cy_end_date,
+      EXTRACT(MONTH FROM cy_start_date) AS start_month,
+      EXTRACT(DAY FROM cy_start_date) AS start_day,
+      EXTRACT(MONTH FROM cy_end_date) AS end_month,
+      EXTRACT(DAY FROM cy_end_date) AS end_day,
+      EXTRACT(YEAR FROM cy_end_date) AS cy_year
+    FROM report_date_range_cy
+  ),
+  allowed_years AS (
+    SELECT DISTINCT CAST(strftime('%Y', REPORTDATE) AS INTEGER) AS yr
+    FROM crashes.crashes
+    WHERE CAST(strftime('%Y', REPORTDATE) AS INTEGER) IN ${inputs.multi_cy.value}
+  ),
+  yearly_counts AS (
+    SELECT
+      ay.yr,
+      c.SEVERITY,
+      SUM(c."COUNT") AS year_count,
+      (SELECT cy_start_date FROM date_info_cy) AS cy_start_date,
+      (SELECT cy_end_date FROM date_info_cy) AS cy_end_date
+    FROM allowed_years ay
+    CROSS JOIN date_info_cy d
+    JOIN crashes.crashes c
+      ON c.REPORTDATE >= make_date(ay.yr, d.start_month, d.start_day)
+     AND c.REPORTDATE <  make_date(ay.yr, d.end_month, d.end_day) + INTERVAL '1 day'
+     AND c.SEVERITY IN ${inputs.multi_severity.value}
+     AND c.MODE IN ${inputs.multi_mode_dd.value}
+     AND c.AGE BETWEEN ${inputs.min_age.value}
+                   AND (
+                        CASE 
+                          WHEN ${inputs.min_age.value} <> 0 
+                           AND ${inputs.max_age.value} = 120
+                          THEN 119
+                          ELSE ${inputs.max_age.value}
+                        END
+                       )
+    GROUP BY ay.yr, c.SEVERITY
+  )
+SELECT
+  yc.yr AS Year,
+  yc.SEVERITY,
+  COALESCE(yc.year_count, 0) AS Count,
+  CASE
+    WHEN LAG(COALESCE(yc.year_count, 0)) OVER (PARTITION BY yc.SEVERITY ORDER BY yc.yr DESC) IS NULL THEN 0
+    ELSE LAG(COALESCE(yc.year_count, 0)) OVER (PARTITION BY yc.SEVERITY ORDER BY yc.yr DESC) - COALESCE(yc.year_count, 0)
+  END AS Diff_from_previous,
+  CASE
+    WHEN LAG(COALESCE(yc.year_count, 0)) OVER (PARTITION BY yc.SEVERITY ORDER BY yc.yr DESC) IS NULL
+         OR LAG(COALESCE(yc.year_count, 0)) OVER (PARTITION BY yc.SEVERITY ORDER BY yc.yr DESC) = 0 THEN 0
+    ELSE (LAG(COALESCE(yc.year_count, 0)) OVER (PARTITION BY yc.SEVERITY ORDER BY yc.yr DESC) - COALESCE(yc.year_count, 0)) * 1.0
+         / LAG(COALESCE(yc.year_count, 0)) OVER (PARTITION BY yc.SEVERITY ORDER BY yc.yr DESC)
+  END AS Percent_Diff_from_previous,
+  strftime('%m/%d', yc.cy_start_date) || '-' || strftime('%m/%d', yc.cy_end_date) AS Date_Range
+FROM yearly_counts yc
+ORDER BY yc.yr DESC, yc.SEVERITY;
+```
+
 <Dropdown
     data={unique_severity} 
     name=multi_severity
@@ -467,11 +629,13 @@ description="By default, there is a two-day lag after the latest update"
             <b>Year {ytd_table[0].Date_Range} Comparison of {`${mode_severity_selection[0].SEVERITY_SELECTION}`} for {`${mode_severity_selection[0].MODE_SELECTION}`}</b>
         </div>
         <BarChart 
-          data={ytd_table}
+          data={ytd_barchart}
           subtitle=" "
           chartAreaHeight=230 
           x="Year" 
           y="Count" 
+          series="SEVERITY"
+          seriesColors={{"Minor": '#ffdf00',"Major": '#ff9412',"Fatal": '#ff5a53'}}
           labels={true} 
           xAxisLabels={true} 
           xTickMarks={true} 
@@ -540,11 +704,13 @@ end={
             <b>Calendar Year ({cy_table[0].Date_Range}) Comparison of {`${mode_severity_selection[0].SEVERITY_SELECTION}`} for {`${mode_severity_selection[0].MODE_SELECTION}`}</b>
         </div>
         <BarChart 
-          data={cy_table}
+          data={cy_barchart}
           subtitle=" "
           chartAreaHeight=230 
           x="Year" 
           y="Count" 
+          series="SEVERITY"
+          seriesColors={{"Minor": '#ffdf00',"Major": '#ff9412',"Fatal": '#ff5a53'}}
           labels={true} 
           xAxisLabels={true} 
           xTickMarks={true} 
