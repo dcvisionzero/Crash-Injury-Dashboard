@@ -9,6 +9,13 @@ sidebar_link: false
 - As of <Value data={last_record} column="latest_record"/> there <Value data={yoy_text_fatal} column="has_have"/> been <Value data={yoy_text_fatal} column="current_year_sum" agg=sum/> **<Value data={yoy_text_fatal} column="fatality"/>** among all road users in <Value data={yoy_text_fatal} column="current_year" fmt='####","'/>   <Value data={yoy_text_fatal} column="difference" agg=sum fmt='####' /> <Value data={yoy_text_fatal} column="difference_text"/> (<Delta data={yoy_text_fatal} column="percentage_change" fmt="+0%;-0%;0%" downIsGood=True neutralMin=-0.00 neutralMax=0.00/>) compared to the same period in <Value data={yoy_text_fatal} column="year_prior" fmt="####."/>
 - As of <Value data={last_record} column="latest_record"/> there <Value data={yoy_text_major_injury} column="has_have"/> been <Value data={yoy_text_major_injury} column="current_year_sum" agg=sum/> **<Value data={yoy_text_major_injury} column="major_injury"/>** among all road users in <Value data={yoy_text_major_injury} column="current_year" fmt='####","'/>   <Value data={yoy_text_major_injury} column="difference" agg=sum fmt='####' /> <Value data={yoy_text_major_injury} column="difference_text"/> (<Delta data={yoy_text_major_injury} column="percentage_change" fmt="+0%;-0%;0%" downIsGood=True neutralMin=-0.00 neutralMax=0.00/>) compared to the same period in <Value data={yoy_text_major_injury} column="year_prior" fmt="####."/>
 
+```sql unique_wards
+select 
+    NAME,
+    WARD_ID
+from wards.wards_2022
+group by all
+```
 
 ```sql unique_mode
 select 
@@ -77,6 +84,7 @@ WITH
   modes_and_severities AS (
     SELECT DISTINCT MODE
     FROM crashes.crashes
+    WHERE WARD IN ${inputs.ward_selection.value}
   ),
   current_period AS (
     SELECT 
@@ -98,6 +106,7 @@ WITH
                       ELSE ${inputs.max_age.value}
                     END
                   )
+      AND WARD IN ${inputs.ward_selection.value}
     GROUP BY MODE
   ),
   prior_period AS (
@@ -120,6 +129,7 @@ WITH
                       ELSE ${inputs.max_age.value}
                     END
                   )
+      AND WARD IN ${inputs.ward_selection.value}
     GROUP BY MODE
   ),
   total_counts AS (
@@ -361,6 +371,7 @@ WITH
   modes_and_severities AS (
     SELECT DISTINCT MODE
     FROM crashes.crashes
+    WHERE WARD IN ${inputs.ward_selection.value}
   ),
   current_period AS (
     SELECT 
@@ -382,6 +393,7 @@ WITH
                       ELSE ${inputs.max_age.value}
                     END
                   )
+      AND WARD IN ${inputs.ward_selection.value}
     GROUP BY MODE
   ),
   prior_period AS (
@@ -404,6 +416,7 @@ WITH
                       ELSE ${inputs.max_age.value}
                     END
                   )
+      AND WARD IN ${inputs.ward_selection.value}
     GROUP BY MODE
   ),
   total_counts AS (
@@ -765,6 +778,15 @@ description="By default, there is a two-day lag after the latest update"
     order="age_int desc"
     defaultValue={120}
     description='Age 120 serves as a placeholder for missing age values in the records. However, missing values will be automatically excluded from the query if the default 0-120 range is changed by the user. To get a count of missing age values, go to the "Age Distribution" page.'
+/>
+
+<Dropdown
+    data={unique_wards} 
+    name=ward_selection
+    value=WARD_ID
+    title="Ward"
+    multiple=true
+    selectAllByDefault=true
 />
 
 <Grid cols=2>
