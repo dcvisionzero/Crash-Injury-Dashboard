@@ -631,7 +631,7 @@ description="By default, there is a two-day lag after the latest update"
         <BarChart 
           data={ytd_barchart}
           subtitle=" "
-          chartAreaHeight=230 
+          chartAreaHeight=225 
           x="Year" 
           y="Count" 
           series="SEVERITY"
@@ -706,7 +706,7 @@ end={
         <BarChart 
           data={cy_barchart}
           subtitle=" "
-          chartAreaHeight=230 
+          chartAreaHeight=202
           x="Year" 
           y="Count" 
           series="SEVERITY"

@@ -17,6 +17,8 @@ group by 1
 select 
     SEVERITY
 from crashes.crashes
+WHERE
+    SEVERITY = 'Fatal'
 group by 1
 ```
 
@@ -108,12 +110,6 @@ FROM
   mode_agg_cte,
   severity_agg_cte,
   total_modes_cte;
-```
-
-```sql hin_eda
-SELECT *
-FROM crashes.crashes
-LIMIT 5
 ```
 
 ```sql hin_tier_table
@@ -843,7 +839,7 @@ ORDER BY ugt.GIS_ID, ugt.TIER, ugt.ROUTENAME;
             <Column id=difference contentType=delta downIsGood=True title="Diff"/>
             <Column id=percentage_change fmt='pct0' title="% Diff" totalAgg={hin_tier_table[0].total_percentage_change} totalFmt='pct0' /> 
         </DataTable>
-        <DataTable data={hin_rate} wrapTitles=true rowShading=true title="{`${mode_severity_selection[0].SEVERITY_SELECTION}`} Injuries for {`${mode_severity_selection[0].MODE_SELECTION}`} in HIN vs All Roads in DC">
+        <DataTable data={hin_rate} wrapTitles=true rowShading=true title="{`${mode_severity_selection[0].SEVERITY_SELECTION}`} for {`${mode_severity_selection[0].MODE_SELECTION}`} in HIN vs All Roads in DC">
             <Column id=period />
             <Column id=injuries_in_hin title="In HIN"/>
             <Column id=total_injuries title="Overall" />
