@@ -85,6 +85,7 @@ WITH
     SELECT DISTINCT MODE
     FROM crashes.crashes
     WHERE WARD IN ${inputs.ward_selection.value}
+      AND MODE <> 'Other'
   ),
   current_period AS (
     SELECT 
@@ -372,6 +373,8 @@ WITH
     SELECT DISTINCT MODE
     FROM crashes.crashes
     WHERE WARD IN ${inputs.ward_selection.value}
+      AND MODE NOT LIKE 'Motorcyclist%'
+      AND MODE NOT LIKE 'Scooterist%'
   ),
   current_period AS (
     SELECT 
@@ -801,6 +804,10 @@ description="By default, there is a two-day lag after the latest update"
       <Column id="percentage_change" fmt="pct0" title="% Diff" totalAgg={period_comp_fatal[0].total_percentage_change} totalFmt="pct0"/>
     </DataTable>
 
+    <Note>
+        *Fatal only.
+    </Note>
+
     <div style="font-size: 14px;">
       <b>Percentage Breakdown:</b>
     </div>
@@ -832,6 +839,15 @@ description="By default, there is a two-day lag after the latest update"
       <Column id="difference" contentType="delta" downIsGood title="Diff"/>
       <Column id="percentage_change" fmt="pct0" title="% Diff" totalAgg={period_comp_major[0].total_percentage_change} totalFmt="pct0"/>
     </DataTable>
+
+    <Note>
+         
+         ‎
+    </Note>
+
+    <Note>
+        "Other" applies to major injuries only.
+    </Note>
 
     <div style="font-size: 14px;">
       <b>Percentage Breakdown:</b>
