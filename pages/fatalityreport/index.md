@@ -99,9 +99,8 @@ GROUP BY
 ```sql unique_hin
 select 
     GIS_ID,
-    ROUTENAME,
-    HIN_TIER,
-from hin_polygon.hin_polygon
+    ROUTENAME
+from hin.hin
 group by all
 ```
 
