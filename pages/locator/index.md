@@ -10,3 +10,7 @@ sidebar_position: 12
     width="100%"
     height=650
 />
+
+<LinkButton url='https://dcgis.maps.arcgis.com/apps/dashboards/0b736406ac5447c7a57b85327dee7c77'>
+  Full screen
+</LinkButton>
