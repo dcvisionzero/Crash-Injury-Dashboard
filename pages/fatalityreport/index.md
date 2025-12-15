@@ -22,7 +22,7 @@ GROUP BY 1
 ```sql unique_year
 SELECT DISTINCT strftime('%Y', REPORTDATE) AS year_string
 FROM crashes.crashes
-WHERE strftime('%Y', REPORTDATE) BETWEEN '2017' 
+WHERE strftime('%Y', REPORTDATE) BETWEEN '2014' 
     AND (SELECT strftime('%Y', MAX(REPORTDATE)) FROM crashes.crashes)
 ORDER BY year_string DESC;
 ```
@@ -529,19 +529,50 @@ FROM
 ```
 
 <DateRange
-  start="2017-01-01"
+  start="2014-01-01"
   end={
     (last_record && last_record[0] && last_record[0].end_date)
-      ? `${last_record[0].end_date}`
+      ? (() => {
+          const fmt = new Intl.DateTimeFormat('en-CA', {
+            timeZone: 'America/New_York'
+          });
+          // Parse YYYY-MM-DD string explicitly
+          const [year, month, day] = last_record[0].end_date.split('-').map(Number);
+          const recordDate = new Date(year, month - 1, day);
+          // Compute yesterday
+          const yesterday = new Date();
+          yesterday.setDate(yesterday.getDate() - 1);
+          const recordStr = fmt.format(recordDate);
+          const yesterdayStr = fmt.format(yesterday);
+          if (recordStr === yesterdayStr) {
+            // If record date is yesterday, just return it
+            return recordStr;
+          } else {
+            // Otherwise add one day
+            const plusOne = new Date(year, month - 1, day + 1);
+            return fmt.format(plusOne);
+          }
+        })()
       : (() => {
-          const twoDaysAgo = new Date(new Date().setDate(new Date().getDate() - 2));
+          const twoDaysAgo = new Date();
+          twoDaysAgo.setDate(twoDaysAgo.getDate() - 2);
           return new Intl.DateTimeFormat('en-CA', {
             timeZone: 'America/New_York'
           }).format(twoDaysAgo);
         })()
   }
   name="date_range"
-  presetRanges={['Last 7 Days', 'Last 30 Days', 'Last 90 Days', 'Last 6 Months', 'Last 12 Months', 'Month to Today', 'Last Month', 'Year to Today', 'Last Year']}
+  presetRanges={[
+    'Last 7 Days',
+    'Last 30 Days',
+    'Last 90 Days',
+    'Last 6 Months',
+    'Last 12 Months',
+    'Month to Today',
+    'Last Month',
+    'Year to Today',
+    'Last Year'
+  ]}
   defaultValue="Year to Today"
   description="By default, there is a two-day lag after the latest update"
 />
