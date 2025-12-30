@@ -51,9 +51,8 @@ WITH
       start_date,
       end_date,
       CASE
-        -- YTD when: start = Jan 1 of current year AND end_date-1 = yesterday
         WHEN start_date = DATE_TRUNC('year', CURRENT_DATE)
-         AND (end_date - INTERVAL '1 day') = (CURRENT_DATE - INTERVAL '1 day')
+        AND '${inputs.date_range.end}'::DATE = end_date - INTERVAL '1 day'
         THEN EXTRACT(YEAR FROM (end_date - INTERVAL '1 day'))::VARCHAR || ' YTD'
         ELSE
           strftime(start_date, '%m/%d/%y')
@@ -144,9 +143,8 @@ WITH
   prior_date_label AS (
     SELECT
       CASE
-        -- Prior YTD only when current period is YTD
         WHEN (SELECT start_date FROM date_info) = DATE_TRUNC('year', CURRENT_DATE)
-         AND (SELECT end_date FROM date_info) - INTERVAL '1 day' = (CURRENT_DATE - INTERVAL '1 day')
+         AND '${inputs.date_range.end}'::DATE = (SELECT end_date FROM date_info) - INTERVAL '1 day'
         THEN EXTRACT(YEAR FROM prior_end_date)::VARCHAR || ' YTD'
         ELSE
           strftime(prior_start_date,   '%m/%d/%y')
@@ -193,9 +191,10 @@ WITH
             start_date,
             end_date,
             CASE
-                WHEN start_date = DATE_TRUNC('year', '${inputs.date_range.end}'::DATE)
+                -- YTD when: start = Jan 1 of current year AND selected end date = end_date - 1 day
+                WHEN start_date = DATE_TRUNC('year', CURRENT_DATE)
                  AND '${inputs.date_range.end}'::DATE = end_date - INTERVAL '1 day'
-                THEN EXTRACT(YEAR FROM '${inputs.date_range.end}'::DATE)::VARCHAR || ' YTD'
+                THEN EXTRACT(YEAR FROM (end_date - INTERVAL '1 day'))::VARCHAR || ' YTD'
                 ELSE
                     strftime(start_date, '%m/%d/%y')
                     || '-'
@@ -233,7 +232,7 @@ WITH
         WHERE 
             SEVERITY = 'Fatal'
             AND REPORTDATE >= (SELECT start_date FROM date_info)
-            AND REPORTDATE <= (SELECT end_date FROM date_info)
+            AND REPORTDATE <= (SELECT end_date   FROM date_info)
             AND AGE BETWEEN ${inputs.min_age.value}
                         AND (
                             CASE 
@@ -254,7 +253,7 @@ WITH
         WHERE 
             SEVERITY = 'Fatal'
             AND REPORTDATE >= ((SELECT start_date FROM date_info) - (SELECT interval_offset FROM offset_period))
-            AND REPORTDATE <= ((SELECT end_date FROM date_info) - (SELECT interval_offset FROM offset_period))
+            AND REPORTDATE <= ((SELECT end_date   FROM date_info) - (SELECT interval_offset FROM offset_period))
             AND AGE BETWEEN ${inputs.min_age.value}
                         AND (
                             CASE 
@@ -283,7 +282,8 @@ WITH
     prior_date_label AS (
         SELECT
             CASE
-                WHEN (SELECT start_date FROM date_info) = DATE_TRUNC('year', '${inputs.date_range.end}'::DATE)
+                -- Prior YTD only when current period is YTD
+                WHEN (SELECT start_date FROM date_info) = DATE_TRUNC('year', CURRENT_DATE)
                  AND '${inputs.date_range.end}'::DATE = (SELECT end_date FROM date_info) - INTERVAL '1 day'
                 THEN EXTRACT(YEAR FROM prior_end_date)::VARCHAR || ' YTD'
                 ELSE
