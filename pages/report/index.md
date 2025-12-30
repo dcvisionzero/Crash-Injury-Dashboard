@@ -51,9 +51,10 @@ WITH
       start_date,
       end_date,
       CASE
-        WHEN start_date = DATE_TRUNC('year', '${inputs.date_range.end}'::DATE)
-         AND '${inputs.date_range.end}'::DATE = end_date - INTERVAL '1 day'
-        THEN EXTRACT(YEAR FROM '${inputs.date_range.end}'::DATE)::VARCHAR || ' YTD'
+        -- YTD when: start = Jan 1 of current year AND end_date-1 = yesterday
+        WHEN start_date = DATE_TRUNC('year', CURRENT_DATE)
+         AND (end_date - INTERVAL '1 day') = (CURRENT_DATE - INTERVAL '1 day')
+        THEN EXTRACT(YEAR FROM (end_date - INTERVAL '1 day'))::VARCHAR || ' YTD'
         ELSE
           strftime(start_date, '%m/%d/%y')
           || '-'
@@ -143,8 +144,9 @@ WITH
   prior_date_label AS (
     SELECT
       CASE
-        WHEN (SELECT start_date FROM date_info) = DATE_TRUNC('year', '${inputs.date_range.end}'::DATE)
-         AND '${inputs.date_range.end}'::DATE = (SELECT end_date FROM date_info) - INTERVAL '1 day'
+        -- Prior YTD only when current period is YTD
+        WHEN (SELECT start_date FROM date_info) = DATE_TRUNC('year', CURRENT_DATE)
+         AND (SELECT end_date FROM date_info) - INTERVAL '1 day' = (CURRENT_DATE - INTERVAL '1 day')
         THEN EXTRACT(YEAR FROM prior_end_date)::VARCHAR || ' YTD'
         ELSE
           strftime(prior_start_date,   '%m/%d/%y')
@@ -165,14 +167,14 @@ SELECT
       / COALESCE(pp.sum_count, 0)
     ELSE NULL
   END AS percentage_change,
-  (SELECT date_range_label       FROM date_info)       AS current_period_range,
+  (SELECT date_range_label       FROM date_info)        AS current_period_range,
   (SELECT prior_date_range_label FROM prior_date_label) AS prior_period_range,
   (total_current_period - total_prior_period)
-    / NULLIF(total_prior_period, 0)                    AS total_percentage_change,
+    / NULLIF(total_prior_period, 0)                     AS total_percentage_change,
   COALESCE(cp.sum_count, 0)
-    / NULLIF(total_current_period, 0)                  AS current_mode_percentage,
+    / NULLIF(total_current_period, 0)                   AS current_mode_percentage,
   COALESCE(pp.sum_count, 0)
-    / NULLIF(total_prior_period, 0)                    AS prior_mode_percentage
+    / NULLIF(total_prior_period, 0)                     AS prior_mode_percentage
 FROM modes_and_severities mas
 LEFT JOIN current_period cp USING (MODE)
 LEFT JOIN prior_period   pp USING (MODE),
@@ -802,20 +804,11 @@ echartsOptions={{animation: false}}
           const fmt = new Intl.DateTimeFormat('en-CA', {
             timeZone: 'America/New_York'
           });
-          // "Today" in ET
-          const now = new Date();
-          const todayStr = fmt.format(now);
-          // Convert formatted YYYY-MM-DD back into a Date object
-          const [ty, tm, td] = todayStr.split('-').map(Number);
-          const todayET = new Date(ty, tm - 1, td);
-          // Apply the 1‑day lag
-          const dataDate = new Date(todayET);
-          dataDate.setDate(dataDate.getDate() - 1);
-          // Extract ET-based year/month/day
-          const dataStr = fmt.format(dataDate);
-          const [yy, mm, dd] = dataStr.split('-').map(Number);
+          // Get today's date in ET as YYYY-MM-DD
+          const todayStr = fmt.format(new Date());
+          const [year, month, day] = todayStr.split('-').map(Number);
           // First week of the year = Jan 1–7 (ET)
-          const inFirstWeek = (mm === 1 && dd <= 7);
+          const inFirstWeek = (month === 1 && day <= 7);
           return inFirstWeek ? 'Last Year' : 'Year to Today';
         })()
       }
