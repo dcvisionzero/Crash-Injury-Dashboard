@@ -797,7 +797,28 @@ echartsOptions={{animation: false}}
         'Year to Today',
         'Last Year'
       ]}
-      defaultValue="Year to Today"
+      defaultValue={
+        (() => {
+          const fmt = new Intl.DateTimeFormat('en-CA', {
+            timeZone: 'America/New_York'
+          });
+          // "Today" in ET
+          const now = new Date();
+          const todayStr = fmt.format(now);
+          // Convert formatted YYYY-MM-DD back into a Date object
+          const [ty, tm, td] = todayStr.split('-').map(Number);
+          const todayET = new Date(ty, tm - 1, td);
+          // Apply the 1‑day lag
+          const dataDate = new Date(todayET);
+          dataDate.setDate(dataDate.getDate() - 1);
+          // Extract ET-based year/month/day
+          const dataStr = fmt.format(dataDate);
+          const [yy, mm, dd] = dataStr.split('-').map(Number);
+          // First week of the year = Jan 1–7 (ET)
+          const inFirstWeek = (mm === 1 && dd <= 7);
+          return inFirstWeek ? 'Last Year' : 'Year to Today';
+        })()
+      }
       description="By default, there is a two-day lag after the latest update"
       title="Fatalities Date Range"
     />
