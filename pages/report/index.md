@@ -601,11 +601,10 @@ WITH date_range AS (
             WHEN extract(month FROM current_date) = 1
              AND extract(day FROM current_date) <= 7
             THEN (date_trunc('year', current_date) - INTERVAL '1 day')::DATE
-
-            -- Normal behavior
-            WHEN MAX(REPORTDATE)::DATE = (current_date - INTERVAL '1 day')
-            THEN MAX(REPORTDATE)::DATE + INTERVAL '1 day'
-            ELSE MAX(REPORTDATE)::DATE + INTERVAL '2 day'
+            -- Normal freeze logic: yesterday unless data is already current
+            WHEN MAX(REPORTDATE)::date = (current_date - INTERVAL '1 day')
+                THEN MAX(REPORTDATE)::date
+            ELSE (current_date - INTERVAL '1 day')::date
         END AS max_report_date
     FROM crashes.crashes
 ),
