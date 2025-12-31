@@ -160,7 +160,7 @@ crashes_with_tiers AS (
   WHERE HIN_TIER_C IS NOT NULL
 ),
 
--- 1) Determine the current period bounds
+-- 1) Determine the current period bounds (same as fatal query)
 report_date_range AS (
   SELECT
     ('${inputs.date_range.end}'::DATE + INTERVAL '1 day') AS end_date,
@@ -196,15 +196,15 @@ prior_window AS (
   CROSS JOIN offset_period AS op
 ),
 
--- 4) Labels for current and prior windows
+-- 4) Labels for current and prior windows (updated to match fatal logic)
 date_info AS (
   SELECT
     start_date,
     end_date,
     CASE
-      WHEN start_date = DATE_TRUNC('year', '${inputs.date_range.end}'::DATE)
+      WHEN start_date = DATE_TRUNC('year', CURRENT_DATE)
        AND '${inputs.date_range.end}'::DATE = end_date - INTERVAL '1 day'
-      THEN EXTRACT(YEAR FROM '${inputs.date_range.end}'::DATE)::VARCHAR || ' YTD'
+      THEN EXTRACT(YEAR FROM (end_date - INTERVAL '1 day'))::VARCHAR || ' YTD'
       ELSE
         strftime(start_date, '%m/%d/%y')
         || '-'
@@ -221,11 +221,11 @@ prior_date_info AS (
 prior_date_label AS (
   SELECT
     CASE
-      WHEN (SELECT start_date FROM date_info) = DATE_TRUNC('year', '${inputs.date_range.end}'::DATE)
+      WHEN (SELECT start_date FROM date_info) = DATE_TRUNC('year', CURRENT_DATE)
        AND '${inputs.date_range.end}'::DATE = (SELECT end_date FROM date_info) - INTERVAL '1 day'
       THEN EXTRACT(YEAR FROM prior_end_date)::VARCHAR || ' YTD'
       ELSE
-        strftime(prior_start_date, '%m/%d/%y')
+        strftime(prior_start_date,   '%m/%d/%y')
         || '-'
         || strftime(prior_end_date - INTERVAL '1 day', '%m/%d/%y')
     END AS prior_date_range_label
@@ -250,7 +250,7 @@ current_hin AS (
   FROM crashes_with_tiers
   WHERE
     SEVERITY = 'Fatal'
-    AND MODE     IN ${inputs.multi_mode_dd.value}
+    AND MODE IN ${inputs.multi_mode_dd.value}
     AND REPORTDATE BETWEEN 
         (SELECT start_date FROM current_window)
     AND (SELECT end_date   FROM current_window)
@@ -264,7 +264,7 @@ current_total AS (
   ) t
   WHERE
     SEVERITY = 'Fatal'
-    AND MODE     IN ${inputs.multi_mode_dd.value}
+    AND MODE IN ${inputs.multi_mode_dd.value}
     AND REPORTDATE BETWEEN 
         (SELECT start_date FROM current_window)
     AND (SELECT end_date   FROM current_window)
@@ -275,7 +275,7 @@ prior_hin AS (
   FROM crashes_with_tiers
   WHERE
     SEVERITY = 'Fatal'
-    AND MODE     IN ${inputs.multi_mode_dd.value}
+    AND MODE IN ${inputs.multi_mode_dd.value}
     AND REPORTDATE BETWEEN 
         (SELECT start_date FROM prior_window)
     AND (SELECT end_date   FROM prior_window)
@@ -289,7 +289,7 @@ prior_total AS (
   ) t
   WHERE
     SEVERITY = 'Fatal'
-    AND MODE     IN ${inputs.multi_mode_dd.value}
+    AND MODE IN ${inputs.multi_mode_dd.value}
     AND REPORTDATE BETWEEN 
         (SELECT start_date FROM prior_window)
     AND (SELECT end_date   FROM prior_window)
@@ -327,44 +327,86 @@ ORDER BY period_sort;
 ```
 
 ```sql ytd_avg
-WITH date_range AS (
-  SELECT
-    '${inputs.date_range.start}'::DATE AS start_date,
-    ('${inputs.date_range.end}'::DATE + INTERVAL '1 day') AS end_date
-),
-yearly_counts AS (
-  SELECT 
-    CAST(strftime('%Y', REPORTDATE) AS INTEGER) AS yr,
-    SUM("COUNT") AS yearly_count
-  FROM (
-    SELECT REPORTDATE,
-           SEVERITY,
-           replace(MODE, '*', '') AS MODE,
-           AGE,
-           COUNT
+WITH 
+  -- Raw input range (end_date is exclusive)
+  date_range AS (
+    SELECT
+      '${inputs.date_range.start}'::DATE AS start_date,
+      ('${inputs.date_range.end}'::DATE + INTERVAL '1 day') AS end_date
+  ),
+
+  -- Compute inclusive end date + current_year
+  date_info AS (
+    SELECT
+      start_date,
+      end_date,
+      (end_date - INTERVAL '1 day') AS inclusive_end_date,
+      EXTRACT(YEAR FROM end_date - INTERVAL '1 day') AS current_year,
+      strftime(start_date, '%m-%d') AS month_day_start,
+      strftime(end_date - INTERVAL '1 day', '%m-%d') AS month_day_end
+    FROM date_range
+  ),
+
+  -- Dataset min/max years
+  crash_years AS (
+    SELECT
+      CAST(strftime('%Y', MIN(REPORTDATE)) AS INTEGER) AS min_year,
+      CAST(strftime('%Y', MAX(REPORTDATE)) AS INTEGER) AS max_year
     FROM crashes.crashes
-  ) c, date_range
-  WHERE c.REPORTDATE >= CAST(CAST(strftime('%Y', c.REPORTDATE) AS TEXT) || '-' || strftime(start_date, '%m-%d') AS DATE)
-    AND c.REPORTDATE < CAST(CAST(strftime('%Y', c.REPORTDATE) AS TEXT) || '-' || strftime(end_date, '%m-%d') AS DATE) + INTERVAL '1 day'
-    AND c.SEVERITY = 'Fatal'
-    AND c.MODE IN ${inputs.multi_mode_dd.value}
-    AND c.AGE BETWEEN ${inputs.min_age.value}
-                  AND (
-                      CASE 
+  ),
+
+  -- Yearly counts using the same window logic as the bar chart
+  yearly_counts AS (
+    SELECT 
+      CAST(strftime('%Y', REPORTDATE) AS INTEGER) AS yr,
+      SUM("COUNT") AS yearly_count
+    FROM (
+      SELECT REPORTDATE,
+             SEVERITY,
+             replace(MODE, '*', '') AS MODE,
+             AGE,
+             COUNT
+      FROM crashes.crashes
+    ) c
+    CROSS JOIN date_info d
+    CROSS JOIN crash_years cy
+    WHERE 
+      -- Apply the same month-day window per year
+      c.REPORTDATE >= CAST(CAST(strftime('%Y', c.REPORTDATE) AS TEXT) || '-' || d.month_day_start AS DATE)
+      AND c.REPORTDATE <  CAST(CAST(strftime('%Y', c.REPORTDATE) AS TEXT) || '-' || d.month_day_end   AS DATE) + INTERVAL '1 day'
+
+      AND c.SEVERITY = 'Fatal'
+      AND c.MODE IN ${inputs.multi_mode_dd.value}
+      AND c.AGE BETWEEN ${inputs.min_age.value}
+                    AND (
+                        CASE 
                           WHEN ${inputs.min_age.value} <> 0 
                            AND ${inputs.max_age.value} = 120
                           THEN 119
                           ELSE ${inputs.max_age.value}
-                      END
-                  )
-    AND strftime('%Y', c.REPORTDATE) IN ${inputs.multi_year.value}
-  GROUP BY yr
-),
-filtered_years AS (
-  SELECT *
-  FROM yearly_counts
-  WHERE yr <> CAST(strftime('%Y', current_date) AS INTEGER) -- exclude current year
-)
+                        END
+                    )
+
+      -- Cap years at LEAST(max_year, current_year)
+      AND CAST(strftime('%Y', c.REPORTDATE) AS INTEGER)
+          BETWEEN (
+            SELECT MIN(x) FROM (VALUES ${inputs.multi_year.value}) AS t(x)
+          )
+          AND LEAST(cy.max_year, d.current_year)
+
+      -- Still respect multi_year input
+      AND strftime('%Y', c.REPORTDATE) IN ${inputs.multi_year.value}
+
+    GROUP BY yr
+  ),
+
+  -- Exclude the "current year" from the average
+  filtered_years AS (
+    SELECT *
+    FROM yearly_counts, date_info
+    WHERE yr <> current_year
+  )
+
 SELECT 
   COALESCE(AVG(yearly_count), 0) AS average_count,
   printf('''%02d⁃''%02d YTD Avg',
@@ -376,18 +418,33 @@ FROM filtered_years;
 
 ```sql ytd_barchart
 WITH 
+  -- Raw input range, as inclusive dates
   report_date_range AS (
     SELECT
+      -- exclusive upper bound (used for BETWEEN logic)
       ('${inputs.date_range.end}'::DATE + INTERVAL '1 day') AS current_end_date,
       '${inputs.date_range.start}'::DATE AS current_start_date
   ),
+
+  -- Get min/max data years
+  crash_years AS (
+    SELECT
+      CAST(strftime('%Y', MIN(REPORTDATE)) AS INTEGER) AS min_year,
+      CAST(strftime('%Y', MAX(REPORTDATE)) AS INTEGER) AS max_year
+    FROM crashes.crashes
+  ),
+
   date_info AS (
     SELECT
       current_start_date   AS start_date,
-      current_end_date     AS end_date,
+      current_end_date     AS end_date,  -- exclusive
+      -- Use the INCLUSIVE end date for all "year" and label logic
+      (current_end_date - INTERVAL '1 day')               AS inclusive_end_date,
+      EXTRACT(YEAR FROM current_end_date - INTERVAL '1 day') AS current_year,
       CASE
-        WHEN current_start_date = DATE_TRUNC('year', current_end_date)
-            AND '${inputs.date_range.end}'::DATE = current_end_date::DATE
+        -- "to Date" only when user’s end date is literally the inclusive end date we’re using
+        WHEN current_start_date = DATE_TRUNC('year', current_end_date - INTERVAL '1 day')
+             AND '${inputs.date_range.end}'::DATE = (current_end_date - INTERVAL '1 day')::DATE
           THEN 'to Date'
         ELSE
           '('
@@ -397,26 +454,37 @@ WITH
           || ')'
       END                   AS date_range_label,
       (current_end_date - current_start_date) AS date_range_days,
-      strftime(current_start_date, '%m-%d')   AS month_day_start,
-      strftime(current_end_date,   '%m-%d')   AS month_day_end,
-      EXTRACT(YEAR FROM current_end_date)     AS current_year
+      strftime(current_start_date,                  '%m-%d') AS month_day_start,
+      -- IMPORTANT: month_day_end is based on inclusive end date, not exclusive
+      strftime(current_end_date - INTERVAL '1 day', '%m-%d') AS month_day_end
     FROM report_date_range
   ),
+
   years AS (
     SELECT CAST(year_string AS INTEGER) AS yr
     FROM (
-      SELECT DISTINCT strftime('%Y', REPORTDATE) AS year_string
-      FROM crashes.crashes
-      WHERE strftime('%Y', REPORTDATE) BETWEEN 
-        (
-          SELECT MIN(x) 
-          FROM (VALUES ${inputs.multi_year.value}) AS t(x)
-        )
-        AND (SELECT strftime('%Y', MAX(REPORTDATE)) FROM crashes.crashes)
+      SELECT DISTINCT
+        strftime('%Y', REPORTDATE) AS year_string
+      FROM crashes.crashes c
+      CROSS JOIN date_info d
+      CROSS JOIN crash_years cy
+      WHERE
+        -- Lower bound: from the minimum of the selected years
+        strftime('%Y', REPORTDATE) BETWEEN 
+          (
+            SELECT MIN(x) 
+            FROM (VALUES ${inputs.multi_year.value}) AS t(x)
+          )
+          -- Upper bound: not beyond the selected "current_year"
+          -- (so if user picks 2024 full year but data has 2025, we cap at 2024)
+          AND CAST(
+                LEAST(cy.max_year, d.current_year) AS VARCHAR
+              )
     ) unique_years
     WHERE year_string IN ${inputs.multi_year.value}
     ORDER BY year_string DESC
   ),
+
   -- Normalize MODE before grouping
   yearly_counts AS (
     SELECT 
@@ -433,6 +501,7 @@ WITH
              COUNT
       FROM crashes.crashes
     ) c
+      -- Use the same month-day window for each year
       ON c.REPORTDATE >= CAST(y.yr || '-' || d.month_day_start AS DATE)
      AND c.REPORTDATE <  CAST(y.yr || '-' || d.month_day_end   AS DATE) + INTERVAL '1 day'
      AND c.SEVERITY = 'Fatal'
@@ -448,6 +517,7 @@ WITH
                        )
     GROUP BY y.yr, c.SEVERITY
   ),
+
   current_year_count AS (
     SELECT yr, SEVERITY, year_count AS current_count
     FROM yearly_counts, date_info
@@ -559,7 +629,19 @@ FROM
     'Year to Today',
     'Last Year'
   ]}
-  defaultValue="Year to Today"
+  defaultValue={
+    (() => {
+      const fmt = new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'America/New_York'
+      });
+      // Get today's date in ET as YYYY-MM-DD
+      const todayStr = fmt.format(new Date());
+      const [year, month, day] = todayStr.split('-').map(Number);
+      // First week of the year = Jan 1–7 (ET)
+      const inFirstWeek = (month === 1 && day <= 7);
+      return inFirstWeek ? 'Last Year' : 'Year to Today';
+    })()
+  }
   description="By default, there is a two-day lag after the latest update"
 />
 
