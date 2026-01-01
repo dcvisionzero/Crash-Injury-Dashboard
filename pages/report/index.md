@@ -51,9 +51,15 @@ WITH
       start_date,
       end_date,
       CASE
+        -- Full calendar year → "YYYY"
+        WHEN start_date = DATE_TRUNC('year', start_date)
+         AND end_date   = DATE_TRUNC('year', start_date) + INTERVAL '1 year'
+        THEN EXTRACT(YEAR FROM start_date)::VARCHAR
+        -- Current YTD → "YYYY YTD"
         WHEN start_date = DATE_TRUNC('year', CURRENT_DATE)
-        AND '${inputs.date_range.end}'::DATE = end_date - INTERVAL '1 day'
+         AND '${inputs.date_range.end}'::DATE = end_date - INTERVAL '1 day'
         THEN EXTRACT(YEAR FROM (end_date - INTERVAL '1 day'))::VARCHAR || ' YTD'
+        -- Default formatted range
         ELSE
           strftime(start_date, '%m/%d/%y')
           || '-'
@@ -67,7 +73,7 @@ WITH
       start_date,
       end_date,
       CASE 
-        WHEN end_date > start_date + INTERVAL '5 year' THEN (SELECT 1/0)  -- guard: >5 yrs
+        WHEN end_date > start_date + INTERVAL '5 year' THEN (SELECT 1/0)
         WHEN end_date > start_date + INTERVAL '4 year' THEN INTERVAL '5 year'
         WHEN end_date > start_date + INTERVAL '3 year' THEN INTERVAL '4 year'
         WHEN end_date > start_date + INTERVAL '2 year' THEN INTERVAL '3 year'
@@ -143,11 +149,17 @@ WITH
   prior_date_label AS (
     SELECT
       CASE
+        -- Full calendar year → "YYYY"
+        WHEN prior_start_date = DATE_TRUNC('year', prior_start_date)
+         AND prior_end_date   = DATE_TRUNC('year', prior_start_date) + INTERVAL '1 year'
+        THEN EXTRACT(YEAR FROM prior_start_date)::VARCHAR
+        -- Prior YTD → "YYYY YTD"
         WHEN (SELECT start_date FROM date_info) = DATE_TRUNC('year', CURRENT_DATE)
          AND '${inputs.date_range.end}'::DATE = (SELECT end_date FROM date_info) - INTERVAL '1 day'
         THEN EXTRACT(YEAR FROM prior_end_date)::VARCHAR || ' YTD'
+        -- Default formatted range
         ELSE
-          strftime(prior_start_date,   '%m/%d/%y')
+          strftime(prior_start_date, '%m/%d/%y')
           || '-'
           || strftime(prior_end_date - INTERVAL '1 day', '%m/%d/%y')
       END AS prior_date_range_label
@@ -191,9 +203,15 @@ WITH
             start_date,
             end_date,
             CASE
+                -- Full calendar year → "YYYY"
+                WHEN start_date = DATE_TRUNC('year', start_date)
+                 AND end_date   = DATE_TRUNC('year', start_date) + INTERVAL '1 year'
+                THEN EXTRACT(YEAR FROM start_date)::VARCHAR
+                -- Current YTD → "YYYY YTD"
                 WHEN start_date = DATE_TRUNC('year', CURRENT_DATE)
                  AND '${inputs.date_range.end}'::DATE = end_date - INTERVAL '1 day'
                 THEN EXTRACT(YEAR FROM (end_date - INTERVAL '1 day'))::VARCHAR || ' YTD'
+                -- Default formatted range
                 ELSE
                     strftime(start_date, '%m/%d/%y')
                     || '-'
@@ -207,7 +225,7 @@ WITH
             start_date,
             end_date,
             CASE 
-                WHEN end_date > start_date + INTERVAL '5 year' THEN (SELECT 1/0)  -- guard: >5 yrs
+                WHEN end_date > start_date + INTERVAL '5 year' THEN (SELECT 1/0)
                 WHEN end_date > start_date + INTERVAL '4 year' THEN INTERVAL '5 year'
                 WHEN end_date > start_date + INTERVAL '3 year' THEN INTERVAL '4 year'
                 WHEN end_date > start_date + INTERVAL '2 year' THEN INTERVAL '3 year'
@@ -217,17 +235,14 @@ WITH
         FROM date_info
     ),
     modes_and_severities AS (
-        SELECT DISTINCT 
-            MODE
-        FROM 
-            crashes.crashes
-    ), 
+        SELECT DISTINCT MODE
+        FROM crashes.crashes
+    ),
     current_period AS (
         SELECT 
             MODE,
             SUM(COUNT) AS sum_count
-        FROM 
-            crashes.crashes 
+        FROM crashes.crashes 
         WHERE 
             SEVERITY = 'Fatal'
             AND REPORTDATE >= (SELECT start_date FROM date_info)
@@ -242,13 +257,12 @@ WITH
                             END
                         )
         GROUP BY MODE
-    ), 
+    ),
     prior_period AS (
         SELECT 
             MODE,
             SUM(COUNT) AS sum_count
-        FROM 
-            crashes.crashes 
+        FROM crashes.crashes 
         WHERE 
             SEVERITY = 'Fatal'
             AND REPORTDATE >= ((SELECT start_date FROM date_info) - (SELECT interval_offset FROM offset_period))
@@ -263,15 +277,13 @@ WITH
                             END
                         )
         GROUP BY MODE
-    ), 
+    ),
     total_counts AS (
         SELECT 
             SUM(cp.sum_count) AS total_current_period,
             SUM(pp.sum_count) AS total_prior_period
-        FROM 
-            current_period cp
-        FULL JOIN prior_period pp 
-        ON cp.MODE = pp.MODE
+        FROM current_period cp
+        FULL JOIN prior_period pp ON cp.MODE = pp.MODE
     ),
     prior_date_info AS (
         SELECT
@@ -281,11 +293,17 @@ WITH
     prior_date_label AS (
         SELECT
             CASE
+                -- Full calendar year → "YYYY"
+                WHEN prior_start_date = DATE_TRUNC('year', prior_start_date)
+                 AND prior_end_date   = DATE_TRUNC('year', prior_start_date) + INTERVAL '1 year'
+                THEN EXTRACT(YEAR FROM prior_start_date)::VARCHAR
+                -- Prior YTD → "YYYY YTD"
                 WHEN (SELECT start_date FROM date_info) = DATE_TRUNC('year', CURRENT_DATE)
                  AND '${inputs.date_range.end}'::DATE = (SELECT end_date FROM date_info) - INTERVAL '1 day'
                 THEN EXTRACT(YEAR FROM prior_end_date)::VARCHAR || ' YTD'
+                -- Default formatted range
                 ELSE
-                    strftime(prior_start_date,   '%m/%d/%y')
+                    strftime(prior_start_date, '%m/%d/%y')
                     || '-'
                     || strftime(prior_end_date - INTERVAL '1 day', '%m/%d/%y')
             END AS prior_date_range_label
@@ -293,32 +311,34 @@ WITH
     )
 SELECT
     mas.MODE,
-    'Current Period'    AS period,
-    COALESCE(cp.sum_count, 0)         AS period_sum,
-    di.date_range_label               AS period_range
+    'Current Period' AS period,
+    COALESCE(cp.sum_count, 0) AS period_sum,
+    di.date_range_label AS period_range
 FROM modes_and_severities mas
-LEFT JOIN current_period   cp ON mas.MODE = cp.MODE
-CROSS JOIN date_info       di
-
+LEFT JOIN current_period cp ON mas.MODE = cp.MODE
+CROSS JOIN date_info di
 UNION ALL
-
 SELECT
     mas.MODE,
-    'Prior Period'      AS period,
-    COALESCE(pp.sum_count, 0)         AS period_sum,
-    pdl.prior_date_range_label        AS period_range
+    'Prior Period' AS period,
+    COALESCE(pp.sum_count, 0) AS period_sum,
+    pdl.prior_date_range_label AS period_range
 FROM modes_and_severities mas
-LEFT JOIN prior_period     pp ON mas.MODE = pp.MODE
+LEFT JOIN prior_period pp ON mas.MODE = pp.MODE
 CROSS JOIN prior_date_label pdl
-
 ORDER BY mas.MODE, period;
 ```
 
 ```sql period_comp_major
 WITH 
   report_date_range AS (
-    SELECT
-      ('${inputs.date_range_mi.end}'::DATE + INTERVAL '1 day') AS end_date,
+      SELECT
+      CASE 
+          WHEN '${inputs.date_range_mi.end}'::DATE 
+              >= (SELECT MAX(REPORTDATE) FROM crashes.crashes)::DATE
+          THEN (SELECT MAX(REPORTDATE) FROM crashes.crashes)::DATE + INTERVAL '1 day'
+          ELSE '${inputs.date_range_mi.end}'::DATE + INTERVAL '1 day'
+      END   AS end_date,
       '${inputs.date_range_mi.start}'::DATE AS start_date
   ),
   date_info AS (
@@ -326,9 +346,15 @@ WITH
       start_date,
       end_date,
       CASE
+        -- Full calendar year → "YYYY"
+        WHEN start_date = DATE_TRUNC('year', start_date)
+         AND end_date   = DATE_TRUNC('year', start_date) + INTERVAL '1 year'
+        THEN EXTRACT(YEAR FROM start_date)::VARCHAR
+        -- Current YTD → "YYYY YTD"
         WHEN start_date = DATE_TRUNC('year', CURRENT_DATE)
-        AND '${inputs.date_range_mi.end}'::DATE = end_date - INTERVAL '1 day'
+         AND '${inputs.date_range_mi.end}'::DATE = end_date - INTERVAL '1 day'
         THEN EXTRACT(YEAR FROM (end_date - INTERVAL '1 day'))::VARCHAR || ' YTD'
+        -- Default formatted range
         ELSE
           strftime(start_date, '%m/%d/%y')
           || '-'
@@ -409,21 +435,27 @@ WITH
       SUM(cp.sum_count) AS total_current_period,
       SUM(pp.sum_count) AS total_prior_period
     FROM current_period cp
-    FULL JOIN prior_period   pp USING (MODE)
+    FULL JOIN prior_period pp USING (MODE)
   ),
   prior_date_info AS (
     SELECT
-      (SELECT start_date      FROM date_info) - (SELECT interval_offset FROM offset_period) AS prior_start_date,
-      (SELECT end_date        FROM date_info) - (SELECT interval_offset FROM offset_period) AS prior_end_date
+      (SELECT start_date FROM date_info) - (SELECT interval_offset FROM offset_period) AS prior_start_date,
+      (SELECT end_date   FROM date_info) - (SELECT interval_offset FROM offset_period) AS prior_end_date
   ),
   prior_date_label AS (
     SELECT
       CASE
+        -- Full calendar year → "YYYY"
+        WHEN prior_start_date = DATE_TRUNC('year', prior_start_date)
+         AND prior_end_date   = DATE_TRUNC('year', prior_start_date) + INTERVAL '1 year'
+        THEN EXTRACT(YEAR FROM prior_start_date)::VARCHAR
+        -- Prior YTD → "YYYY YTD"
         WHEN (SELECT start_date FROM date_info) = DATE_TRUNC('year', CURRENT_DATE)
          AND '${inputs.date_range_mi.end}'::DATE = (SELECT end_date FROM date_info) - INTERVAL '1 day'
         THEN EXTRACT(YEAR FROM prior_end_date)::VARCHAR || ' YTD'
+        -- Default formatted range
         ELSE
-          strftime(prior_start_date,   '%m/%d/%y')
+          strftime(prior_start_date, '%m/%d/%y')
           || '-'
           || strftime(prior_end_date - INTERVAL '1 day', '%m/%d/%y')
       END AS prior_date_range_label
@@ -459,17 +491,28 @@ LEFT JOIN prior_period   pp USING (MODE),
 WITH 
     report_date_range AS (
         SELECT
-            ('${inputs.date_range_mi.end}'::DATE + INTERVAL '1 day') AS end_date,
-            '${inputs.date_range_mi.start}'::DATE AS start_date
+        CASE 
+            WHEN '${inputs.date_range_mi.end}'::DATE 
+                >= (SELECT MAX(REPORTDATE) FROM crashes.crashes)::DATE
+            THEN (SELECT MAX(REPORTDATE) FROM crashes.crashes)::DATE + INTERVAL '1 day'
+            ELSE '${inputs.date_range_mi.end}'::DATE + INTERVAL '1 day'
+        END   AS end_date,
+        '${inputs.date_range_mi.start}'::DATE AS start_date
     ),
     date_info AS (
         SELECT
             start_date,
             end_date,
             CASE
+                -- Full calendar year → "YYYY"
+                WHEN start_date = DATE_TRUNC('year', start_date)
+                 AND end_date   = DATE_TRUNC('year', start_date) + INTERVAL '1 year'
+                THEN EXTRACT(YEAR FROM start_date)::VARCHAR
+                -- Current YTD → "YYYY YTD"
                 WHEN start_date = DATE_TRUNC('year', CURRENT_DATE)
                  AND '${inputs.date_range_mi.end}'::DATE = end_date - INTERVAL '1 day'
                 THEN EXTRACT(YEAR FROM (end_date - INTERVAL '1 day'))::VARCHAR || ' YTD'
+                -- Default formatted range
                 ELSE
                     strftime(start_date, '%m/%d/%y')
                     || '-'
@@ -480,76 +523,68 @@ WITH
     ),
     offset_period AS (
         SELECT
-        start_date,
-        end_date,
-        CASE 
-            WHEN end_date > start_date + INTERVAL '5 year' THEN (SELECT 1/0)  -- guard: >5 yrs
-            WHEN end_date > start_date + INTERVAL '4 year' THEN INTERVAL '5 year'
-            WHEN end_date > start_date + INTERVAL '3 year' THEN INTERVAL '4 year'
-            WHEN end_date > start_date + INTERVAL '2 year' THEN INTERVAL '3 year'
-            WHEN end_date > start_date + INTERVAL '1 year' THEN INTERVAL '2 year'
-            ELSE INTERVAL '1 year'
-        END AS interval_offset
+            start_date,
+            end_date,
+            CASE 
+                WHEN end_date > start_date + INTERVAL '5 year' THEN (SELECT 1/0)
+                WHEN end_date > start_date + INTERVAL '4 year' THEN INTERVAL '5 year'
+                WHEN end_date > start_date + INTERVAL '3 year' THEN INTERVAL '4 year'
+                WHEN end_date > start_date + INTERVAL '2 year' THEN INTERVAL '3 year'
+                WHEN end_date > start_date + INTERVAL '1 year' THEN INTERVAL '2 year'
+                ELSE INTERVAL '1 year'
+            END AS interval_offset
         FROM date_info
     ),
     modes_and_severities AS (
-        SELECT DISTINCT 
-            MODE
-        FROM 
-            crashes.crashes
-    ), 
+        SELECT DISTINCT MODE
+        FROM crashes.crashes
+    ),
     current_period AS (
         SELECT 
             MODE,
             SUM(COUNT) AS sum_count
-        FROM 
-            crashes.crashes 
+        FROM crashes.crashes 
         WHERE 
             SEVERITY = 'Major'
             AND REPORTDATE >= (SELECT start_date FROM date_info)
-            AND REPORTDATE <= (SELECT end_date FROM date_info)
+            AND REPORTDATE <= (SELECT end_date   FROM date_info)
             AND AGE BETWEEN ${inputs.min_age.value}
-                                AND (
-                                    CASE 
-                                        WHEN ${inputs.min_age.value} <> 0 
-                                        AND ${inputs.max_age.value} = 120
-                                        THEN 119
-                                        ELSE ${inputs.max_age.value}
-                                    END
-                                    )
-        GROUP BY 
-            MODE
-    ), 
+                        AND (
+                            CASE 
+                                WHEN ${inputs.min_age.value} <> 0 
+                                 AND ${inputs.max_age.value} = 120
+                                THEN 119
+                                ELSE ${inputs.max_age.value}
+                            END
+                        )
+        GROUP BY MODE
+    ),
     prior_period AS (
         SELECT 
             MODE,
             SUM(COUNT) AS sum_count
-        FROM 
-            crashes.crashes 
+        FROM crashes.crashes 
         WHERE 
             SEVERITY = 'Major'
             AND REPORTDATE >= ((SELECT start_date FROM date_info) - (SELECT interval_offset FROM offset_period))
-            AND REPORTDATE <= ((SELECT end_date FROM date_info) - (SELECT interval_offset FROM offset_period))
+            AND REPORTDATE <= ((SELECT end_date   FROM date_info) - (SELECT interval_offset FROM offset_period))
             AND AGE BETWEEN ${inputs.min_age.value}
-                                AND (
-                                    CASE 
-                                        WHEN ${inputs.min_age.value} <> 0 
-                                        AND ${inputs.max_age.value} = 120
-                                        THEN 119
-                                        ELSE ${inputs.max_age.value}
-                                    END
-                                    )
-        GROUP BY 
-            MODE
-    ), 
+                        AND (
+                            CASE 
+                                WHEN ${inputs.min_age.value} <> 0 
+                                 AND ${inputs.max_age.value} = 120
+                                THEN 119
+                                ELSE ${inputs.max_age.value}
+                            END
+                        )
+        GROUP BY MODE
+    ),
     total_counts AS (
         SELECT 
             SUM(cp.sum_count) AS total_current_period,
             SUM(pp.sum_count) AS total_prior_period
-        FROM 
-            current_period cp
-        FULL JOIN 
-            prior_period pp 
+        FROM current_period cp
+        FULL JOIN prior_period pp 
         ON cp.MODE = pp.MODE
     ),
     prior_date_info AS (
@@ -560,37 +595,40 @@ WITH
     prior_date_label AS (
         SELECT
             CASE
+                -- Full calendar year → "YYYY"
+                WHEN prior_start_date = DATE_TRUNC('year', prior_start_date)
+                 AND prior_end_date   = DATE_TRUNC('year', prior_start_date) + INTERVAL '1 year'
+                THEN EXTRACT(YEAR FROM prior_start_date)::VARCHAR
+                -- Prior YTD → "YYYY YTD"
                 WHEN (SELECT start_date FROM date_info) = DATE_TRUNC('year', CURRENT_DATE)
                  AND '${inputs.date_range_mi.end}'::DATE = (SELECT end_date FROM date_info) - INTERVAL '1 day'
                 THEN EXTRACT(YEAR FROM prior_end_date)::VARCHAR || ' YTD'
+                -- Default formatted range
                 ELSE
-                    strftime(prior_start_date,   '%m/%d/%y')
+                    strftime(prior_start_date, '%m/%d/%y')
                     || '-'
                     || strftime(prior_end_date - INTERVAL '1 day', '%m/%d/%y')
             END AS prior_date_range_label
         FROM prior_date_info
     )
-    SELECT
+SELECT
     mas.MODE,
-    'Current Period'    AS period,
-    COALESCE(cp.sum_count, 0)         AS period_sum,
-    di.date_range_label               AS period_range
-    FROM modes_and_severities mas
-    LEFT JOIN current_period   cp ON mas.MODE = cp.MODE
-    CROSS JOIN date_info       di
-
-    UNION ALL
-
-    SELECT
+    'Current Period' AS period,
+    COALESCE(cp.sum_count, 0) AS period_sum,
+    di.date_range_label AS period_range
+FROM modes_and_severities mas
+LEFT JOIN current_period cp ON mas.MODE = cp.MODE
+CROSS JOIN date_info di
+UNION ALL
+SELECT
     mas.MODE,
-    'Prior Period'      AS period,
-    COALESCE(pp.sum_count, 0)         AS period_sum,
-    pdl.prior_date_range_label        AS period_range
-    FROM modes_and_severities mas
-    LEFT JOIN prior_period     pp ON mas.MODE = pp.MODE
-    CROSS JOIN prior_date_label pdl
-
-    ORDER BY mas.MODE, period;
+    'Prior Period' AS period,
+    COALESCE(pp.sum_count, 0) AS period_sum,
+    pdl.prior_date_range_label AS period_range
+FROM modes_and_severities mas
+LEFT JOIN prior_period pp ON mas.MODE = pp.MODE
+CROSS JOIN prior_date_label pdl
+ORDER BY mas.MODE, period;
 ```
 
 ```sql yoy_text_fatal
