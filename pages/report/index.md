@@ -5,9 +5,91 @@ queries:
    - age_range: age_range.sql
 sidebar_link: false
 ---
+{#if yoy_text_fatal[0].is_first_week}
+  <span style="font-size: 1.4rem; font-weight: 700;">
+    <Value data={yoy_text_fatal} column="current_year" fmt="####"/> Year-End
+  </span>
+{:else}
+{/if}
 
-- As of <Value data={yoy_text_fatal} column="max_report_date_formatted"/> there <Value data={yoy_text_fatal} column="has_have"/> been <Value data={yoy_text_fatal} column="current_year_sum" agg=sum/> **<Value data={yoy_text_fatal} column="fatality"/>** among all road users in <Value data={yoy_text_fatal} column="current_year" fmt='####","'/>   <Value data={yoy_text_fatal} column="difference" agg=sum fmt='####' /> <Value data={yoy_text_fatal} column="difference_text"/> (<Delta data={yoy_text_fatal} column="percentage_change" fmt="+0%;-0%;0%" downIsGood=True neutralMin=-0.00 neutralMax=0.00/>) compared to the same period in <Value data={yoy_text_fatal} column="year_prior" fmt="####."/>
-- As of <Value data={yoy_text_major_injury} column="max_report_date_formatted"/> there <Value data={yoy_text_major_injury} column="has_have"/> been <Value data={yoy_text_major_injury} column="current_year_sum" agg=sum/> **<Value data={yoy_text_major_injury} column="major_injury"/>** among all road users in <Value data={yoy_text_major_injury} column="current_year" fmt='####","'/>   <Value data={yoy_text_major_injury} column="difference" agg=sum fmt='####' /> <Value data={yoy_text_major_injury} column="difference_text"/> (<Delta data={yoy_text_major_injury} column="percentage_change" fmt="+0%;-0%;0%" downIsGood=True neutralMin=-0.00 neutralMax=0.00/>) compared to the same period in <Value data={yoy_text_major_injury} column="year_prior" fmt="####."/>
+<ul class="markdown">
+  {#if yoy_text_fatal[0].is_first_week}
+    <li>
+      In <Value data={yoy_text_fatal} column="current_year" fmt="####"/> there
+      were <Value data={yoy_text_fatal} column="current_year_sum" agg=sum/>
+      <strong><Value data={yoy_text_fatal} column="fatality"/></strong>
+      among all road users,
+      <Value data={yoy_text_fatal} column="difference" agg=sum fmt="####"/>
+      <Value data={yoy_text_fatal} column="difference_text"/>
+      (<Delta
+        data={yoy_text_fatal}
+        column="percentage_change"
+        fmt="+0%;-0%;0%"
+        downIsGood={true}
+      />)
+      compared to the same period in
+      <Value data={yoy_text_fatal} column="year_prior" fmt="####."/>
+    </li>
+  {:else}
+    <li>
+      As of
+      <Value data={yoy_text_fatal} column="max_report_date_formatted"/> there
+      <Value data={yoy_text_fatal} column="has_have"/> been
+      <Value data={yoy_text_fatal} column="current_year_sum" agg=sum/>
+      <strong><Value data={yoy_text_fatal} column="fatality"/></strong>
+      among all road users in
+      <Value data={yoy_text_fatal} column="current_year" fmt="####"/>,
+      <Value data={yoy_text_fatal} column="difference" agg=sum fmt="####"/>
+      <Value data={yoy_text_fatal} column="difference_text"/>
+      (<Delta
+        data={yoy_text_fatal}
+        column="percentage_change"
+        fmt="+0%;-0%;0%"
+        downIsGood={true}
+      />)
+      compared to the same period in
+      <Value data={yoy_text_fatal} column="year_prior" fmt="####."/>
+    </li>
+  {/if}
+  {#if yoy_text_major_injury[0].is_first_week}
+    <li>
+      In <Value data={yoy_text_major_injury} column="current_year" fmt="####"/> there were
+      <Value data={yoy_text_major_injury} column="current_year_sum" agg=sum/>
+      <strong><Value data={yoy_text_major_injury} column="major_injury"/></strong>
+      among all road users,
+      <Value data={yoy_text_major_injury} column="difference" agg=sum fmt="####"/>
+      <Value data={yoy_text_major_injury} column="difference_text"/>
+      (<Delta
+        data={yoy_text_major_injury}
+        column="percentage_change"
+        fmt="+0%;-0%;0%"
+        downIsGood={true}
+      />)
+      compared to the same period in
+      <Value data={yoy_text_major_injury} column="year_prior" fmt="####."/>
+    </li>
+  {:else}
+    <li>
+      As of
+      <Value data={yoy_text_major_injury} column="max_report_date_formatted"/> there
+      <Value data={yoy_text_major_injury} column="has_have"/> been
+      <Value data={yoy_text_major_injury} column="current_year_sum" agg=sum/>
+      <strong><Value data={yoy_text_major_injury} column="major_injury"/></strong>
+      among all road users in
+      <Value data={yoy_text_major_injury} column="current_year" fmt="####"/>,
+      <Value data={yoy_text_major_injury} column="difference" agg=sum fmt="####"/>
+      <Value data={yoy_text_major_injury} column="difference_text"/>
+      (<Delta
+        data={yoy_text_major_injury}
+        column="percentage_change"
+        fmt="+0%;-0%;0%"
+        downIsGood={true}
+      />)
+      compared to the same period in
+      <Value data={yoy_text_major_injury} column="year_prior" fmt="####."/>
+    </li>
+  {/if}
+</ul>
 
 ```sql unique_wards
 select 
@@ -653,7 +735,14 @@ params AS (
         date_trunc('year', dr.max_report_date - interval '1 year') AS prior_year_start,
         dr.max_report_date - interval '1 year' AS prior_year_end,
         extract(year FROM dr.max_report_date) AS current_year,
-        extract(year FROM dr.max_report_date - interval '1 year') AS year_prior
+        extract(year FROM dr.max_report_date - interval '1 year') AS year_prior,
+        -- flag based on frozen date
+        CASE
+            WHEN extract(month FROM current_date) = 1
+             AND extract(day FROM current_date) <= 7
+            THEN TRUE
+            ELSE FALSE
+        END AS is_first_week
     FROM date_range dr
 ),
 yearly_counts AS (
@@ -686,7 +775,8 @@ SELECT
     p.year_prior,
     CASE WHEN yc.current_year_sum = 1 THEN 'has' ELSE 'have' END AS has_have,
     CASE WHEN yc.current_year_sum = 1 THEN 'fatality' ELSE 'fatalities' END AS fatality,
-    strftime(p.current_year_end, '%m/%d/%y') AS max_report_date_formatted
+    strftime(p.current_year_end, '%m/%d/%y') AS max_report_date_formatted,
+    p.is_first_week
 FROM yearly_counts yc
 CROSS JOIN params p;
 ```
@@ -695,39 +785,54 @@ CROSS JOIN params p;
 WITH date_range AS (
     SELECT
         CASE
-            -- Freeze to last year's final date during Jan 1–7 of ANY year
+            -- During Jan 1–7, freeze exclusive end to Jan 1 of current year
             WHEN extract(month FROM current_date) = 1
              AND extract(day FROM current_date) <= 7
-            THEN (date_trunc('year', current_date) - INTERVAL '1 day')::DATE
-
-            -- Normal behavior: advance 1 day past the latest report
+            THEN date_trunc('year', current_date)
+            -- Otherwise: exclusive end = max(REPORTDATE)+1
             ELSE MAX(REPORTDATE)::DATE + INTERVAL '1 day'
-        END AS max_report_date
+        END AS max_report_date_excl
     FROM crashes.crashes
 ),
 params AS (
     SELECT
-        date_trunc('year', dr.max_report_date) AS current_year_start,
-        dr.max_report_date AS current_year_end,
-        date_trunc('year', dr.max_report_date - interval '1 year') AS prior_year_start,
-        dr.max_report_date - interval '1 year' AS prior_year_end,
-        extract(year FROM dr.max_report_date) AS current_year,
-        extract(year FROM dr.max_report_date - interval '1 year') AS year_prior
+        -- Current period: Jan 1 of the *year before* the exclusive end
+        date_trunc('year', dr.max_report_date_excl - INTERVAL '1 day') AS current_year_start,
+        dr.max_report_date_excl AS current_year_end_excl,
+        -- Prior period: shift back one full year
+        date_trunc('year', dr.max_report_date_excl - INTERVAL '1 year' - INTERVAL '1 day') AS prior_year_start,
+        (dr.max_report_date_excl - INTERVAL '1 year') AS prior_year_end_excl,
+        extract(year FROM dr.max_report_date_excl - INTERVAL '1 day') AS current_year,
+        extract(year FROM dr.max_report_date_excl - INTERVAL '1 year' - INTERVAL '1 day') AS year_prior,
+        CASE
+            WHEN extract(month FROM current_date) = 1
+             AND extract(day   FROM current_date) <= 7
+            THEN TRUE
+            ELSE FALSE
+        END AS is_first_week
     FROM date_range dr
 ),
 yearly_counts AS (
     SELECT
-        SUM(CASE
-            WHEN cr.REPORTDATE BETWEEN p.current_year_start AND p.current_year_end
-            THEN cr.COUNT ELSE 0 END) AS current_year_sum,
-        SUM(CASE
-            WHEN cr.REPORTDATE BETWEEN p.prior_year_start AND p.prior_year_end
-            THEN cr.COUNT ELSE 0 END) AS prior_year_sum
-    FROM crashes.crashes AS cr
+        SUM(
+            CASE
+                WHEN cr.REPORTDATE >= p.current_year_start
+                 AND cr.REPORTDATE <  p.current_year_end_excl
+                THEN cr.COUNT ELSE 0
+            END
+        ) AS current_year_sum,
+        SUM(
+            CASE
+                WHEN cr.REPORTDATE >= p.prior_year_start
+                 AND cr.REPORTDATE <  p.prior_year_end_excl
+                THEN cr.COUNT ELSE 0
+            END
+        ) AS prior_year_sum
+    FROM crashes.crashes cr
     CROSS JOIN params p
     WHERE cr.SEVERITY = 'Major'
       AND cr.REPORTDATE >= p.prior_year_start
-      AND cr.REPORTDATE <= p.current_year_end
+      AND cr.REPORTDATE <  p.current_year_end_excl
 )
 SELECT
     'Major' AS severity,
@@ -747,7 +852,9 @@ SELECT
     p.year_prior,
     CASE WHEN yc.current_year_sum = 1 THEN 'has' ELSE 'have' END AS has_have,
     CASE WHEN yc.current_year_sum = 1 THEN 'major injury' ELSE 'major injuries' END AS major_injury,
-    strftime(p.current_year_end, '%m/%d/%y') AS max_report_date_formatted
+    -- Display last included date
+    strftime(p.current_year_end_excl - INTERVAL '1 day', '%m/%d/%y') AS max_report_date_formatted,
+    p.is_first_week
 FROM yearly_counts yc
 CROSS JOIN params p;
 ```

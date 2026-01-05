@@ -6,6 +6,12 @@ queries:
    - age_range: age_range.sql
 sidebar_link: false
 ---
+{#if hin_rate[0].is_first_week}
+  <span style="font-size: 1.4rem; font-weight: 700;">
+    <Value data={hin_rate} column="period"/> Year-End
+  </span>
+{:else}
+{/if}
 
 ```sql fatality_with_link
 select *, '/fatalities/' || DeathCaseID as link
@@ -192,21 +198,18 @@ prior_window AS (
   FROM report_date_range AS rdr
   CROSS JOIN offset_period AS op
 ),
--- 4) Labels for current and prior windows (updated to match calendar-year/YTD logic)
+-- 4) Labels for current and prior windows
 date_info AS (
   SELECT
     start_date,
     end_date,
     CASE
-      -- Full calendar year → "YYYY"
       WHEN start_date = DATE_TRUNC('year', start_date)
        AND end_date   = DATE_TRUNC('year', start_date) + INTERVAL '1 year'
       THEN EXTRACT(YEAR FROM start_date)::VARCHAR
-      -- Current YTD → "YYYY YTD"
       WHEN start_date = DATE_TRUNC('year', CURRENT_DATE)
        AND '${inputs.date_range.end}'::DATE = end_date - INTERVAL '1 day'
       THEN EXTRACT(YEAR FROM (end_date - INTERVAL '1 day'))::VARCHAR || ' YTD'
-      -- Default formatted range
       ELSE
         strftime(start_date, '%m/%d/%y')
         || '-'
@@ -223,15 +226,12 @@ prior_date_info AS (
 prior_date_label AS (
   SELECT
     CASE
-      -- Full calendar year → "YYYY"
       WHEN prior_start_date = DATE_TRUNC('year', prior_start_date)
        AND prior_end_date   = DATE_TRUNC('year', prior_start_date) + INTERVAL '1 year'
       THEN EXTRACT(YEAR FROM prior_start_date)::VARCHAR
-      -- Prior YTD → "YYYY YTD"
       WHEN (SELECT start_date FROM date_info) = DATE_TRUNC('year', CURRENT_DATE)
        AND '${inputs.date_range.end}'::DATE = (SELECT end_date FROM date_info) - INTERVAL '1 day'
       THEN EXTRACT(YEAR FROM prior_end_date)::VARCHAR || ' YTD'
-      -- Default formatted range
       ELSE
         strftime(prior_start_date,   '%m/%d/%y')
         || '-'
@@ -300,8 +300,18 @@ prior_total AS (
         (SELECT start_date FROM prior_window)
     AND (SELECT end_date   FROM prior_window)
     AND AGE BETWEEN (SELECT min_age FROM age_bounds) AND (SELECT max_age FROM age_bounds)
+),
+-- 7) Add first-week flag
+first_week_flag AS (
+  SELECT
+    CASE
+      WHEN extract(month FROM current_date) = 1
+       AND extract(day   FROM current_date) <= 7
+      THEN TRUE
+      ELSE FALSE
+    END AS is_first_week
 )
--- 7) Final output
+-- 8) Final output
 SELECT
   1 AS period_sort,
   (SELECT date_range_label FROM date_info) AS period,
@@ -310,7 +320,8 @@ SELECT
   CASE 
     WHEN ct.total_injuries = 0 THEN NULL
     ELSE ch.injuries_in_hin * 1.0 / ct.total_injuries
-  END AS proportion_hin
+  END AS proportion_hin,
+  (SELECT is_first_week FROM first_week_flag) AS is_first_week
 FROM current_hin AS ch
 CROSS JOIN current_total AS ct
 UNION ALL
@@ -322,7 +333,8 @@ SELECT
   CASE 
     WHEN pt.total_injuries_prior = 0 THEN NULL
     ELSE ph.injuries_in_hin_prior * 1.0 / pt.total_injuries_prior
-  END AS proportion_hin
+  END AS proportion_hin,
+  (SELECT is_first_week FROM first_week_flag) AS is_first_week
 FROM prior_hin AS ph
 CROSS JOIN prior_total AS pt
 ORDER BY period_sort;
