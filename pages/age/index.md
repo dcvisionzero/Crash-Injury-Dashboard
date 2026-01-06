@@ -162,13 +162,13 @@ date_info AS (
       CASE
         WHEN start_date = DATE_TRUNC('year', '${inputs.date_range.end}'::DATE)
          AND '${inputs.date_range.end}'::DATE = (SELECT MAX(REPORTDATE)::DATE FROM crashes.crashes)
-        THEN EXTRACT(YEAR FROM '${inputs.date_range.end}'::DATE)::VARCHAR || ' YTD'
+        THEN EXTRACT(YEAR FROM end_date - INTERVAL '1 day')::VARCHAR || ' YTD'
         ELSE
-          strftime(start_date,            '%m/%d/%y')
+          strftime(start_date, '%m/%d/%y')
           || '-' ||
           strftime(end_date - INTERVAL '1 day', '%m/%d/%y')
       END AS current_period_range,
-      EXTRACT(YEAR FROM '${inputs.date_range.end}'::DATE) % 100 AS current_year_short
+      EXTRACT(YEAR FROM end_date - INTERVAL '1 day') % 100 AS current_year_short
     FROM report_date_range
 ),
 
@@ -198,13 +198,13 @@ prior_date_label AS (
       CASE
         WHEN (SELECT start_date FROM date_info) = DATE_TRUNC('year', (SELECT end_date FROM date_info))
          AND '${inputs.date_range.end}'::DATE = (SELECT MAX(REPORTDATE)::DATE FROM crashes.crashes)
-        THEN EXTRACT(YEAR FROM prior_end_date)::VARCHAR || ' YTD'
+        THEN EXTRACT(YEAR FROM prior_end_date - INTERVAL '1 day')::VARCHAR || ' YTD'
         ELSE
-          strftime(prior_start_date,         '%m/%d/%y')
+          strftime(prior_start_date, '%m/%d/%y')
           || '-' ||
           strftime(prior_end_date - INTERVAL '1 day', '%m/%d/%y')
       END AS prior_period_range,
-      EXTRACT(YEAR FROM prior_end_date)::INTEGER % 100 AS prior_year_short
+      EXTRACT(YEAR FROM prior_end_date - INTERVAL '1 day') % 100 AS prior_year_short
     FROM prior_date_info
 ),
 

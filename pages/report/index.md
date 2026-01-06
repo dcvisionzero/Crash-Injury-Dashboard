@@ -885,7 +885,7 @@ echartsOptions={{animation: false}}
     data={unique_wards} 
     name=ward_selection
     value=WARD_ID
-    title="Ward"
+    title="Wards"
     multiple=true
     selectAllByDefault=true
 />
