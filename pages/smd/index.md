@@ -7,7 +7,7 @@ queries:
 sidebar_position: 5
 ---
 
-Single Memeber Districts (SMDs)
+Single Member Districts (SMDs)
 
 ```sql unique_mode
 select 
