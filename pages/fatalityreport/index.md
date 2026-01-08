@@ -651,8 +651,8 @@ FROM
       // Get today's date in ET as YYYY-MM-DD
       const todayStr = fmt.format(new Date());
       const [year, month, day] = todayStr.split('-').map(Number);
-      // First week of the year = Jan 1–7 (ET)
-      const inFirstWeek = (month === 1 && day <= 7);
+      // First week of the year = Jan 1–9 (ET)
+      const inFirstWeek = (month === 1 && day <= 9);
       return inFirstWeek ? 'Last Year' : 'Year to Today';
     })()
   }

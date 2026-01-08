@@ -719,7 +719,7 @@ WITH date_range AS (
         CASE
             -- First week of any year → freeze to last year's final date
             WHEN extract(month FROM current_date) = 1
-             AND extract(day FROM current_date) <= 7
+             AND extract(day FROM current_date) <= 9
             THEN (date_trunc('year', current_date) - INTERVAL '1 day')::DATE
             -- Normal freeze logic: yesterday unless data is already current
             WHEN MAX(REPORTDATE)::date = (current_date - INTERVAL '1 day')
@@ -739,7 +739,7 @@ params AS (
         -- flag based on frozen date
         CASE
             WHEN extract(month FROM current_date) = 1
-             AND extract(day FROM current_date) <= 7
+             AND extract(day FROM current_date) <= 9
             THEN TRUE
             ELSE FALSE
         END AS is_first_week
@@ -785,9 +785,9 @@ CROSS JOIN params p;
 WITH date_range AS (
     SELECT
         CASE
-            -- During Jan 1–7, freeze exclusive end to Jan 1 of current year
+            -- During Jan 1–9, freeze exclusive end to Jan 1 of current year
             WHEN extract(month FROM current_date) = 1
-             AND extract(day FROM current_date) <= 7
+             AND extract(day FROM current_date) <= 9
             THEN date_trunc('year', current_date)
             -- Otherwise: exclusive end = max(REPORTDATE)+1
             ELSE MAX(REPORTDATE)::DATE + INTERVAL '1 day'
@@ -806,7 +806,7 @@ params AS (
         extract(year FROM dr.max_report_date_excl - INTERVAL '1 year' - INTERVAL '1 day') AS year_prior,
         CASE
             WHEN extract(month FROM current_date) = 1
-             AND extract(day   FROM current_date) <= 7
+             AND extract(day   FROM current_date) <= 9
             THEN TRUE
             ELSE FALSE
         END AS is_first_week
@@ -947,8 +947,8 @@ echartsOptions={{animation: false}}
           // Get today's date in ET as YYYY-MM-DD
           const todayStr = fmt.format(new Date());
           const [year, month, day] = todayStr.split('-').map(Number);
-          // First week of the year = Jan 1–7 (ET)
-          const inFirstWeek = (month === 1 && day <= 7);
+          // First week of the year = Jan 1–9 (ET)
+          const inFirstWeek = (month === 1 && day <= 9);
           return inFirstWeek ? 'Last Year' : 'Year to Today';
         })()
       }
@@ -1014,8 +1014,8 @@ echartsOptions={{animation: false}}
           // Get today's date in ET as YYYY-MM-DD
           const todayStr = fmt.format(new Date());
           const [year, month, day] = todayStr.split('-').map(Number);
-          // First week of the year = Jan 1–7 (ET)
-          const inFirstWeek = (month === 1 && day <= 7);
+          // First week of the year = Jan 1–9 (ET)
+          const inFirstWeek = (month === 1 && day <= 9);
           return inFirstWeek ? 'Last Year' : 'Year to Today';
         })()
       }
