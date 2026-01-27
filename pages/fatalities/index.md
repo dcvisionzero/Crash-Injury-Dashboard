@@ -320,6 +320,20 @@ As of <Value data={last_record} column="latest_record"/> there <Value data={yoy_
         <Note>
             The purple lines represent DC's High Injury Network
         </Note>
+    </Group>
+    <Group>
+        <div style="font-size: 14px;">
+            <b>Table of Fatalities for {`${mode_selection[0].MODE_SELECTION}`}</b>
+        </div>
+        <Note class='text-sm'>
+            Select a fatality in the table to see more details about it and the post-crash follow-up.
+        </Note>
+        <DataTable data={inc_map} link=link wrapTitles=true rowShading=true search=true rows=5>
+            <Column id=REPORTDATE title="Date" fmt='mm/dd/yy hh:mm' wrap=true/>
+            <Column id=mode_ccn title="Road User - CCN - Case" wrap=true/>
+            <Column id=Age/>
+            <Column id=ADDRESS wrap=true/>
+        </DataTable>
         <BarChart 
           data={Impairment}
           chartAreaHeight=45
@@ -354,21 +368,6 @@ As of <Value data={last_record} column="latest_record"/> there <Value data={yoy_
           yAxisLabels=false
           seriesOrder={['Yes','No','Unknown']}
         />
-    </Group>
-    <Group>
-        <div style="font-size: 14px;">
-            <b>Table of Fatalities for {`${mode_selection[0].MODE_SELECTION}`}</b>
-        </div>
-        <Note class='text-sm'>
-            Select a fatality in the table to see more details about it and the post-crash follow-up.
-        </Note>
-        <DataTable data={inc_map} link=link wrapTitles=true rowShading=true search=true rows=9>
-            <Column id=REPORTDATE title="Date" fmt='mm/dd/yy hh:mm' wrap=true/>
-            <Column id=mode_ccn title="Road User - CCN - Case" wrap=true/>
-            <Column id=Age/>
-            <Column id=ADDRESS wrap=true/>
-        </DataTable>
-
         <BarChart 
           data={HitAndRun}
           chartAreaHeight=30
