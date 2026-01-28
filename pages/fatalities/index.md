@@ -20,72 +20,117 @@ GROUP BY 1
 ```
 
 ```sql Impairment
+WITH categories AS (
+    SELECT * FROM (VALUES 
+        ('Yes'),
+        ('No'),
+        ('Unknown')
+    ) AS t(SuspectedImpaired)
+),
+filtered AS (
+    SELECT
+        UPPER(substr(SuspectedImpaired, 1, 1)) || LOWER(substr(SuspectedImpaired, 2)) AS SuspectedImpaired,
+        COUNT AS Count
+    FROM crashes.crashes
+    WHERE replace(MODE, '*', '') IN ${inputs.multi_mode_dd.value}
+      AND SEVERITY = 'Fatal'
+      AND REPORTDATE BETWEEN ('${inputs.date_range.start}'::DATE) 
+                          AND (('${inputs.date_range.end}'::DATE) + INTERVAL '1 day')
+      AND AGE BETWEEN ${inputs.min_age.value}
+                  AND (
+                      CASE 
+                          WHEN ${inputs.min_age.value} <> 0 
+                           AND ${inputs.max_age.value} = 120
+                          THEN 119
+                          ELSE ${inputs.max_age.value}
+                      END
+                  )
+)
 SELECT
     'Suspected Impairment*' AS Impairment,
-    UPPER(substr(SuspectedImpaired, 1, 1)) || LOWER(substr(SuspectedImpaired, 2)) AS SuspectedImpaired,
-    SUM(COUNT) AS Count
-FROM crashes.crashes
-WHERE replace(MODE, '*', '') IN ${inputs.multi_mode_dd.value}
-  AND SEVERITY = 'Fatal'
-  AND REPORTDATE BETWEEN ('${inputs.date_range.start}'::DATE) 
-                      AND (('${inputs.date_range.end}'::DATE) + INTERVAL '1 day')
-  AND AGE BETWEEN ${inputs.min_age.value}
-              AND (
-                  CASE 
-                      WHEN ${inputs.min_age.value} <> 0 
-                       AND ${inputs.max_age.value} = 120
-                      THEN 119
-                      ELSE ${inputs.max_age.value}
-                  END
-              )
-GROUP BY
-    UPPER(substr(SuspectedImpaired, 1, 1)) || LOWER(substr(SuspectedImpaired, 2));
+    c.SuspectedImpaired,
+    COALESCE(SUM(f.Count), 0) AS Count
+FROM categories c
+LEFT JOIN filtered f
+    ON c.SuspectedImpaired = f.SuspectedImpaired
+GROUP BY c.SuspectedImpaired
+ORDER BY c.SuspectedImpaired;
 ```
 
 ```sql Speeding
+WITH categories AS (
+    SELECT * FROM (VALUES 
+        ('Yes'),
+        ('No'),
+        ('Unknown')
+    ) AS t(SuspectedSpeeding)
+),
+filtered AS (
+    SELECT
+        UPPER(substr(SuspectedSpeeding, 1, 1)) || LOWER(substr(SuspectedSpeeding, 2)) AS SuspectedSpeeding,
+        COUNT AS Count
+    FROM crashes.crashes
+    WHERE replace(MODE, '*', '') IN ${inputs.multi_mode_dd.value}
+      AND SEVERITY = 'Fatal'
+      AND REPORTDATE BETWEEN ('${inputs.date_range.start}'::DATE) 
+                          AND (('${inputs.date_range.end}'::DATE) + INTERVAL '1 day')
+      AND AGE BETWEEN ${inputs.min_age.value}
+                  AND (
+                      CASE 
+                          WHEN ${inputs.min_age.value} <> 0 
+                           AND ${inputs.max_age.value} = 120
+                          THEN 119
+                          ELSE ${inputs.max_age.value}
+                      END
+                  )
+)
 SELECT
     'Suspected Speeding** ' AS Speeding,
-    UPPER(substr(SuspectedSpeeding, 1, 1)) || LOWER(substr(SuspectedSpeeding, 2)) AS SuspectedSpeeding,
-    SUM(COUNT) AS Count
-FROM crashes.crashes
-WHERE replace(MODE, '*', '') IN ${inputs.multi_mode_dd.value}
-  AND SEVERITY = 'Fatal'
-  AND REPORTDATE BETWEEN ('${inputs.date_range.start}'::DATE) 
-                      AND (('${inputs.date_range.end}'::DATE) + INTERVAL '1 day')
-  AND AGE BETWEEN ${inputs.min_age.value}
-              AND (
-                  CASE 
-                      WHEN ${inputs.min_age.value} <> 0 
-                       AND ${inputs.max_age.value} = 120
-                      THEN 119
-                      ELSE ${inputs.max_age.value}
-                  END
-              )
-GROUP BY
-    UPPER(substr(SuspectedSpeeding, 1, 1)) || LOWER(substr(SuspectedSpeeding, 2));
+    c.SuspectedSpeeding,
+    COALESCE(SUM(f.Count), 0) AS Count
+FROM categories c
+LEFT JOIN filtered f
+    ON c.SuspectedSpeeding = f.SuspectedSpeeding
+GROUP BY c.SuspectedSpeeding
+ORDER BY c.SuspectedSpeeding;
 ```
 
 ```sql HitAndRun
+WITH categories AS (
+    SELECT * FROM (VALUES 
+        ('Yes'),
+        ('No'),
+        ('Unknown')
+    ) AS t(HitAndRun)
+),
+filtered AS (
+    SELECT
+        UPPER(substr(HitAndRun, 1, 1)) || LOWER(substr(HitAndRun, 2)) AS HitAndRun,
+        COUNT AS Count
+    FROM crashes.crashes
+    WHERE replace(MODE, '*', '') IN ${inputs.multi_mode_dd.value}
+      AND SEVERITY = 'Fatal'
+      AND REPORTDATE BETWEEN ('${inputs.date_range.start}'::DATE) 
+                          AND (('${inputs.date_range.end}'::DATE) + INTERVAL '1 day')
+      AND AGE BETWEEN ${inputs.min_age.value}
+                  AND (
+                      CASE 
+                          WHEN ${inputs.min_age.value} <> 0 
+                           AND ${inputs.max_age.value} = 120
+                          THEN 119
+                          ELSE ${inputs.max_age.value}
+                      END
+                  )
+)
 SELECT
     'Hit-and-Run                  ' AS HitAndRunLabel,
-    UPPER(substr(HitAndRun, 1, 1)) || LOWER(substr(HitAndRun, 2)) AS HitAndRun,
-    SUM(COUNT) AS Count
-FROM crashes.crashes
-WHERE replace(MODE, '*', '') IN ${inputs.multi_mode_dd.value}
-  AND SEVERITY = 'Fatal'
-  AND REPORTDATE BETWEEN ('${inputs.date_range.start}'::DATE) 
-                      AND (('${inputs.date_range.end}'::DATE) + INTERVAL '1 day')
-  AND AGE BETWEEN ${inputs.min_age.value}
-              AND (
-                  CASE 
-                      WHEN ${inputs.min_age.value} <> 0 
-                       AND ${inputs.max_age.value} = 120
-                      THEN 119
-                      ELSE ${inputs.max_age.value}
-                  END
-              )
-GROUP BY
-    UPPER(substr(HitAndRun, 1, 1)) || LOWER(substr(HitAndRun, 2));
+    c.HitAndRun,
+    COALESCE(SUM(f.Count), 0) AS Count
+FROM categories c
+LEFT JOIN filtered f
+    ON c.HitAndRun = f.HitAndRun
+GROUP BY c.HitAndRun
+ORDER BY c.HitAndRun;
 ```
 
 ```sql unique_hin
@@ -244,21 +289,34 @@ FROM
 As of <Value data={last_record} column="latest_record"/> there <Value data={yoy_text_fatal} column="has_have"/> been <Value data={yoy_text_fatal} column="current_year_sum" agg=sum/> <Value data={yoy_text_fatal} column="fatality"/> among all road users in <Value data={yoy_text_fatal} column="current_year" fmt='####","'/>   <Value data={yoy_text_fatal} column="difference" agg=sum fmt='####' /> <Value data={yoy_text_fatal} column="difference_text"/> (<Delta data={yoy_text_fatal} column="percentage_change" fmt="+0%;-0%;0%" downIsGood=True neutralMin=-0.00 neutralMax=0.00/>) compared to the same period in <Value data={yoy_text_fatal} column="year_prior" fmt="####."/>
 
 <DateRange
-  start="2017-01-01"
-  end={
+start="2017-01-01"
+end={
     (last_record && last_record[0] && last_record[0].end_date)
-      ? `${last_record[0].end_date}`
-      : (() => {
-          const twoDaysAgo = new Date(new Date().setDate(new Date().getDate() - 2));
-          return new Intl.DateTimeFormat('en-CA', {
+    ? `${last_record[0].end_date}`
+    : (() => {
+        const twoDaysAgo = new Date(new Date().setDate(new Date().getDate() - 2));
+        return new Intl.DateTimeFormat('en-CA', {
             timeZone: 'America/New_York'
-          }).format(twoDaysAgo);
+        }).format(twoDaysAgo);
         })()
-  }
-  name="date_range"
-  presetRanges={['Last 7 Days', 'Last 30 Days', 'Last 90 Days', 'Last 6 Months', 'Last 12 Months', 'Month to Today', 'Last Month', 'Year to Today', 'Last Year']}
-  defaultValue="Year to Today"
-  description="By default, there is a two-day lag after the latest update"
+}
+disableAutoDefault={true}
+name="date_range"
+presetRanges={['Last 7 Days', 'Last 30 Days', 'Last 90 Days', 'Last 6 Months', 'Last 12 Months', 'Month to Today', 'Last Month', 'Year to Today', 'Last Year']}
+defaultValue={
+  (() => {
+    const fmt = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'America/New_York'
+    });
+    // Get today's date in ET as YYYY-MM-DD
+    const todayStr = fmt.format(new Date());
+    const [year, month, day] = todayStr.split('-').map(Number);
+    // First week of the year = Jan 1–9 (ET)
+    const inFirstWeek = (month === 1 && day <= 9);
+    return inFirstWeek ? 'Last Year' : 'Year to Today';
+  })()
+}
+description="By default, there is a two-day lag after the latest update"
 />
 
 <Dropdown
@@ -349,6 +407,7 @@ As of <Value data={last_record} column="latest_record"/> there <Value data={yoy_
           downloadableImage=false
           leftPadding={10} 
           seriesOrder={['Yes','No','Unknown']}
+          seriesColors={{'Yes': '#f95738','No': '#0d3b66','Unknown': '#faf0ca'}}
         />
         <BarChart 
           data={Speeding}
@@ -367,6 +426,7 @@ As of <Value data={last_record} column="latest_record"/> there <Value data={yoy_
           legend=false
           yAxisLabels=false
           seriesOrder={['Yes','No','Unknown']}
+          seriesColors={{'Yes': '#f95738','No': '#0d3b66','Unknown': '#faf0ca'}}
         />
         <BarChart 
           data={HitAndRun}
@@ -385,6 +445,7 @@ As of <Value data={last_record} column="latest_record"/> there <Value data={yoy_
           legend=false
           yAxisLabels=false
           seriesOrder={['Yes','No','Unknown']}
+          seriesColors={{'Yes': '#f95738','No': '#0d3b66','Unknown': '#faf0ca'}}
         />
     </Group>
 </Grid>

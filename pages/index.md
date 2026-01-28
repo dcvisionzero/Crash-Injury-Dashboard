@@ -1483,29 +1483,30 @@ ORDER BY SEVERITY, period;
 WITH date_range AS (
     SELECT
         CASE
-            -- Freeze for Jan 1–9: use last day of prior year
+            -- Jan 1–9 freeze: exclusive end = Jan 1 of current year
             WHEN extract(month FROM current_date) = 1
-             AND extract(day FROM current_date) <= 9
-            THEN (date_trunc('year', current_date) - INTERVAL '1 day')::DATE
-
-            -- Normal freeze logic: yesterday unless data is already current
-            WHEN MAX(REPORTDATE)::date = (current_date - INTERVAL '1 day')
-            THEN MAX(REPORTDATE)::date
-            ELSE (current_date - INTERVAL '1 day')::date
-        END AS max_report_date
+             AND extract(day   FROM current_date) <= 9
+            THEN date_trunc('year', current_date)
+            -- Otherwise: exclusive end = max(REPORTDATE) + 1 day
+            ELSE MAX(REPORTDATE)::DATE + INTERVAL '1 day'
+        END AS max_report_date_excl
     FROM crashes.crashes
 ),
 params AS (
     SELECT
-        date_trunc('year', dr.max_report_date) AS current_year_start,
-        dr.max_report_date AS current_year_end,
-        date_trunc('year', dr.max_report_date - interval '1 year') AS prior_year_start,
-        dr.max_report_date - interval '1 year' AS prior_year_end,
-        extract(year FROM dr.max_report_date) AS current_year,
-        extract(year FROM dr.max_report_date - interval '1 year') AS year_prior,
+        -- Current period: Jan 1 of the year before the exclusive end
+        date_trunc('year', dr.max_report_date_excl - INTERVAL '1 day') AS current_year_start,
+        dr.max_report_date_excl AS current_year_end_excl,
+        -- Prior period: shift back one full year
+        date_trunc('year', dr.max_report_date_excl - INTERVAL '1 year' - INTERVAL '1 day') AS prior_year_start,
+        (dr.max_report_date_excl - INTERVAL '1 year') AS prior_year_end_excl,
+        -- Year labels
+        extract(year FROM dr.max_report_date_excl - INTERVAL '1 day') AS current_year,
+        extract(year FROM dr.max_report_date_excl - INTERVAL '1 year' - INTERVAL '1 day') AS year_prior,
+        -- Freeze flag
         CASE
             WHEN extract(month FROM current_date) = 1
-             AND extract(day FROM current_date) <= 9
+             AND extract(day   FROM current_date) <= 9
             THEN TRUE
             ELSE FALSE
         END AS is_first_week
@@ -1513,43 +1514,45 @@ params AS (
 ),
 yearly_counts AS (
     SELECT
-        SUM(CASE
-            WHEN cr.REPORTDATE BETWEEN p.current_year_start AND p.current_year_end
-            THEN cr.COUNT ELSE 0 END) AS current_year_sum,
-        SUM(CASE
-            WHEN cr.REPORTDATE BETWEEN p.prior_year_start AND p.prior_year_end
-            THEN cr.COUNT ELSE 0 END) AS prior_year_sum
-    FROM crashes.crashes AS cr
+        SUM(
+            CASE
+                WHEN cr.REPORTDATE >= p.current_year_start
+                 AND cr.REPORTDATE <  p.current_year_end_excl
+                THEN cr.COUNT ELSE 0
+            END
+        ) AS current_year_sum,
+        SUM(
+            CASE
+                WHEN cr.REPORTDATE >= p.prior_year_start
+                 AND cr.REPORTDATE <  p.prior_year_end_excl
+                THEN cr.COUNT ELSE 0
+            END
+        ) AS prior_year_sum
+    FROM crashes.crashes cr
     CROSS JOIN params p
     WHERE cr.SEVERITY = 'Fatal'
       AND cr.REPORTDATE >= p.prior_year_start
-      AND cr.REPORTDATE <= p.current_year_end
+      AND cr.REPORTDATE <  p.current_year_end_excl
 )
 SELECT
     'Fatal' AS severity,
     yc.current_year_sum,
     yc.prior_year_sum,
     ABS(yc.current_year_sum - yc.prior_year_sum) AS difference,
-    CASE
-        WHEN yc.prior_year_sum <> 0
-        THEN ((yc.current_year_sum - yc.prior_year_sum)::numeric / yc.prior_year_sum)
-        ELSE NULL
-    END AS percentage_change,
-    CASE
-        WHEN (yc.current_year_sum - yc.prior_year_sum) > 0 THEN 'an increase of'
-        WHEN (yc.current_year_sum - yc.prior_year_sum) < 0 THEN 'a decrease of'
-        ELSE NULL
-    END AS percentage_change_text,
-    CASE
-        WHEN (yc.current_year_sum - yc.prior_year_sum) > 0 THEN 'more'
-        WHEN (yc.current_year_sum - yc.prior_year_sum) < 0 THEN 'fewer'
-        ELSE 'no change'
-    END AS difference_text,
+    CASE WHEN yc.prior_year_sum <> 0
+         THEN ((yc.current_year_sum - yc.prior_year_sum)::numeric / yc.prior_year_sum)
+         ELSE NULL END AS percentage_change,
+    CASE WHEN (yc.current_year_sum - yc.prior_year_sum) > 0 THEN 'an increase of'
+         WHEN (yc.current_year_sum - yc.prior_year_sum) < 0 THEN 'a decrease of'
+         ELSE NULL END AS percentage_change_text,
+    CASE WHEN (yc.current_year_sum - yc.prior_year_sum) > 0 THEN 'more'
+         WHEN (yc.current_year_sum - yc.prior_year_sum) < 0 THEN 'fewer'
+         ELSE 'no change' END AS difference_text,
     p.current_year,
     p.year_prior,
     CASE WHEN yc.current_year_sum = 1 THEN 'has' ELSE 'have' END AS has_have,
     CASE WHEN yc.current_year_sum = 1 THEN 'fatality' ELSE 'fatalities' END AS fatality,
-    strftime(p.current_year_end, '%m/%d/%y') AS max_report_date_formatted,
+    strftime(p.current_year_end_excl - INTERVAL '1 day', '%m/%d/%y') AS max_report_date_formatted,
     p.is_first_week
 FROM yearly_counts yc
 CROSS JOIN params p;
@@ -1559,25 +1562,26 @@ CROSS JOIN params p;
 WITH date_range AS (
     SELECT
         CASE
-            -- Freeze for Jan 1–9: use last day of prior year
+            -- Freeze exclusive end to Jan 1 during Jan 1–9
             WHEN extract(month FROM current_date) = 1
-             AND extract(day FROM current_date) <= 9
-            THEN (date_trunc('year', current_date) - INTERVAL '1 day')::DATE
-            -- Normal freeze logic: yesterday unless data is already current
-            WHEN MAX(REPORTDATE)::date = (current_date - INTERVAL '1 day')
-            THEN MAX(REPORTDATE)::date
-            ELSE (current_date - INTERVAL '1 day')::date
-        END AS max_report_date
+             AND extract(day   FROM current_date) <= 9
+            THEN date_trunc('year', current_date)
+            -- Otherwise: exclusive end = max(REPORTDATE) + 1 day
+            ELSE MAX(REPORTDATE)::DATE + INTERVAL '1 day'
+        END AS max_report_date_excl
     FROM crashes.crashes
 ),
 params AS (
     SELECT
-        date_trunc('year', dr.max_report_date) AS current_year_start,
-        dr.max_report_date AS current_year_end,
-        extract(year FROM dr.max_report_date) AS current_year,
+        -- Current YTD window: Jan 1 of the year before exclusive end
+        date_trunc('year', dr.max_report_date_excl - INTERVAL '1 day') AS current_year_start,
+        dr.max_report_date_excl AS current_year_end_excl,
+        -- Year label for current year
+        extract(year FROM dr.max_report_date_excl - INTERVAL '1 day') AS current_year,
+        -- Freeze flag
         CASE
             WHEN extract(month FROM current_date) = 1
-             AND extract(day FROM current_date) <= 9
+             AND extract(day   FROM current_date) <= 9
             THEN TRUE
             ELSE FALSE
         END AS is_first_week
@@ -1591,9 +1595,9 @@ current_ytd AS (
     CROSS JOIN params p
     WHERE cr.SEVERITY = 'Fatal'
       AND cr.REPORTDATE >= p.current_year_start
-      AND cr.REPORTDATE <  p.current_year_end
+      AND cr.REPORTDATE <  p.current_year_end_excl
 ),
--- Three prior YTD periods
+-- Three prior YTD periods (shift exclusive window back 1, 2, 3 years)
 prior_years AS (
     SELECT
         1 AS yr_offset,
@@ -1602,7 +1606,7 @@ prior_years AS (
     CROSS JOIN params p
     WHERE cr.SEVERITY = 'Fatal'
       AND cr.REPORTDATE >= p.current_year_start - INTERVAL '1 year'
-      AND cr.REPORTDATE <  p.current_year_end   - INTERVAL '1 year'
+      AND cr.REPORTDATE <  p.current_year_end_excl - INTERVAL '1 year'
     UNION ALL
     SELECT
         2 AS yr_offset,
@@ -1611,7 +1615,7 @@ prior_years AS (
     CROSS JOIN params p
     WHERE cr.SEVERITY = 'Fatal'
       AND cr.REPORTDATE >= p.current_year_start - INTERVAL '2 year'
-      AND cr.REPORTDATE <  p.current_year_end   - INTERVAL '2 year'
+      AND cr.REPORTDATE <  p.current_year_end_excl - INTERVAL '2 year'
     UNION ALL
     SELECT
         3 AS yr_offset,
@@ -1620,14 +1624,14 @@ prior_years AS (
     CROSS JOIN params p
     WHERE cr.SEVERITY = 'Fatal'
       AND cr.REPORTDATE >= p.current_year_start - INTERVAL '3 year'
-      AND cr.REPORTDATE <  p.current_year_end   - INTERVAL '3 year'
+      AND cr.REPORTDATE <  p.current_year_end_excl - INTERVAL '3 year'
 ),
 -- Average of the three prior YTDs
 prior_avg AS (
     SELECT
-        (COALESCE(MAX(CASE WHEN yr_offset=1 THEN sum_count END),0) +
-         COALESCE(MAX(CASE WHEN yr_offset=2 THEN sum_count END),0) +
-         COALESCE(MAX(CASE WHEN yr_offset=3 THEN sum_count END),0)
+        (COALESCE(MAX(CASE WHEN yr_offset = 1 THEN sum_count END), 0) +
+         COALESCE(MAX(CASE WHEN yr_offset = 2 THEN sum_count END), 0) +
+         COALESCE(MAX(CASE WHEN yr_offset = 3 THEN sum_count END), 0)
         ) / 3.0 AS prior_3yr_avg_sum
     FROM prior_years
 )
@@ -1636,30 +1640,25 @@ SELECT
     cy.current_year_sum,
     pa.prior_3yr_avg_sum,
     ABS(cy.current_year_sum - pa.prior_3yr_avg_sum) AS difference,
-    CASE
-        WHEN pa.prior_3yr_avg_sum <> 0
-        THEN (cy.current_year_sum - pa.prior_3yr_avg_sum) / pa.prior_3yr_avg_sum
-        ELSE NULL
-    END AS percentage_change,
-    CASE
-        WHEN (cy.current_year_sum - pa.prior_3yr_avg_sum) > 0 THEN 'an increase of'
-        WHEN (cy.current_year_sum - pa.prior_3yr_avg_sum) < 0 THEN 'a decrease of'
-        ELSE NULL
-    END AS percentage_change_text,
-    CASE
-        WHEN (cy.current_year_sum - pa.prior_3yr_avg_sum) > 0 THEN 'more'
-        WHEN (cy.current_year_sum - pa.prior_3yr_avg_sum) < 0 THEN 'fewer'
-        ELSE 'no change'
-    END AS difference_text,
+    CASE WHEN pa.prior_3yr_avg_sum <> 0
+         THEN (cy.current_year_sum - pa.prior_3yr_avg_sum) / pa.prior_3yr_avg_sum
+         ELSE NULL END AS percentage_change,
+    CASE WHEN (cy.current_year_sum - pa.prior_3yr_avg_sum) > 0 THEN 'an increase of'
+         WHEN (cy.current_year_sum - pa.prior_3yr_avg_sum) < 0 THEN 'a decrease of'
+         ELSE NULL END AS percentage_change_text,
+    CASE WHEN (cy.current_year_sum - pa.prior_3yr_avg_sum) > 0 THEN 'more'
+         WHEN (cy.current_year_sum - pa.prior_3yr_avg_sum) < 0 THEN 'fewer'
+         ELSE 'no change' END AS difference_text,
     p.current_year,
     '''' || RIGHT(CAST(p.current_year AS VARCHAR), 2) AS current_year_label,
     '''' || RIGHT(CAST(p.current_year - 3 AS VARCHAR), 2)
           || '-' || '''' || RIGHT(CAST(p.current_year - 1 AS VARCHAR), 2)
           || ' YTD Avg' AS prior_period_label,
-    '''' || RIGHT(CAST(EXTRACT(YEAR FROM p.current_year_end - INTERVAL '1 year') AS VARCHAR), 2) AS last_year_label,
+    '''' || RIGHT(CAST(p.current_year - 1 AS VARCHAR), 2) AS last_year_label,
     CASE WHEN cy.current_year_sum = 1 THEN 'has' ELSE 'have' END AS has_have,
     CASE WHEN cy.current_year_sum = 1 THEN 'fatality' ELSE 'fatalities' END AS fatality,
-    strftime(p.current_year_end, '%m/%d/%y') AS max_report_date_formatted,
+    -- Display last included date (exclusive end minus 1 day)
+    strftime(p.current_year_end_excl - INTERVAL '1 day', '%m/%d/%y') AS max_report_date_formatted,
     p.is_first_week
 FROM current_ytd cy
 CROSS JOIN prior_avg pa

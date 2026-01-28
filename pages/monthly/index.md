@@ -324,27 +324,33 @@ ORDER BY m.mo;
 />
 
 <DateRange
-start={
-    (() => {
-    const beginningOfYear = new Date(new Date().getFullYear(), 0, 1);
-    return new Intl.DateTimeFormat('en-CA', {
-        timeZone: 'America/New_York'
-    }).format(beginningOfYear);
-    })()
+start="2017-01-01"
+end={
+    (last_record && last_record[0] && last_record[0].end_date)
+    ? `${last_record[0].end_date}`
+    : (() => {
+        const twoDaysAgo = new Date(new Date().setDate(new Date().getDate() - 2));
+        return new Intl.DateTimeFormat('en-CA', {
+            timeZone: 'America/New_York'
+        }).format(twoDaysAgo);
+        })()
 }
-  end={
-        (last_record && last_record[0] && last_record[0].end_date)
-          ? `${last_record[0].end_date}`
-          : (() => {
-              const twoDaysAgo = new Date(new Date().setDate(new Date().getDate() - 2));
-              return new Intl.DateTimeFormat('en-CA', {
-                timeZone: 'America/New_York'
-              }).format(twoDaysAgo);
-            })()
-      }
+disableAutoDefault={true}
 name="date_range"
-presetRanges={['Year to Today']}
-defaultValue="Year to Today"
+presetRanges={['Year to Today', 'Last Year']}
+defaultValue={
+  (() => {
+    const fmt = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'America/New_York'
+    });
+    // Get today's date in ET as YYYY-MM-DD
+    const todayStr = fmt.format(new Date());
+    const [year, month, day] = todayStr.split('-').map(Number);
+    // First week of the year = Jan 1–9 (ET)
+    const inFirstWeek = (month === 1 && day <= 9);
+    return inFirstWeek ? 'Last Year' : 'Year to Today';
+  })()
+}
 description="By default, there is a two-day lag after the latest update"
 />
 
