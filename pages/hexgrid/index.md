@@ -405,8 +405,8 @@ WITH
     SELECT
       CASE 
         WHEN '${inputs.date_range.end}'::DATE 
-             >= (SELECT MAX(REPORTDATE) FROM crashes.crashes)::DATE
-        THEN (SELECT MAX(REPORTDATE) FROM crashes.crashes)::DATE + INTERVAL '1 day'
+             >= (SELECT MAX(LAST_RECORD) FROM crashes.crashes)::DATE
+        THEN (SELECT MAX(LAST_RECORD) FROM crashes.crashes)::DATE + INTERVAL '1 day'
         ELSE '${inputs.date_range.end}'::DATE + INTERVAL '1 day'
       END AS end_date,
       '${inputs.date_range.start}'::DATE AS start_date
@@ -415,7 +415,7 @@ WITH
     SELECT
       CASE
         WHEN start_date = DATE_TRUNC('year', '${inputs.date_range.end}'::DATE)
-         AND '${inputs.date_range.end}'::DATE = (SELECT MAX(REPORTDATE) FROM crashes.crashes)::DATE
+         AND '${inputs.date_range.end}'::DATE = (SELECT MAX(LAST_RECORD) FROM crashes.crashes)::DATE
         THEN EXTRACT(YEAR FROM '${inputs.date_range.end}'::DATE)::VARCHAR || ' YTD'
         ELSE
           strftime(start_date, '%m/%d/%y')

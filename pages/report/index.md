@@ -417,8 +417,8 @@ WITH
       SELECT
       CASE 
           WHEN '${inputs.date_range_mi.end}'::DATE 
-              >= (SELECT MAX(REPORTDATE) FROM crashes.crashes)::DATE
-          THEN (SELECT MAX(REPORTDATE) FROM crashes.crashes)::DATE + INTERVAL '1 day'
+              >= (SELECT MAX(LAST_RECORD) FROM crashes.crashes)::DATE
+          THEN (SELECT MAX(LAST_RECORD) FROM crashes.crashes)::DATE + INTERVAL '1 day'
           ELSE '${inputs.date_range_mi.end}'::DATE + INTERVAL '1 day'
       END   AS end_date,
       '${inputs.date_range_mi.start}'::DATE AS start_date
@@ -575,8 +575,8 @@ WITH
         SELECT
         CASE 
             WHEN '${inputs.date_range_mi.end}'::DATE 
-                >= (SELECT MAX(REPORTDATE) FROM crashes.crashes)::DATE
-            THEN (SELECT MAX(REPORTDATE) FROM crashes.crashes)::DATE + INTERVAL '1 day'
+                >= (SELECT MAX(LAST_RECORD) FROM crashes.crashes)::DATE
+            THEN (SELECT MAX(LAST_RECORD) FROM crashes.crashes)::DATE + INTERVAL '1 day'
             ELSE '${inputs.date_range_mi.end}'::DATE + INTERVAL '1 day'
         END   AS end_date,
         '${inputs.date_range_mi.start}'::DATE AS start_date
@@ -722,8 +722,8 @@ WITH date_range AS (
              AND extract(day FROM current_date) <= 9
             THEN (date_trunc('year', current_date) - INTERVAL '1 day')::DATE
             -- Normal freeze logic: yesterday unless data is already current
-            WHEN MAX(REPORTDATE)::date = (current_date - INTERVAL '1 day')
-                THEN MAX(REPORTDATE)::date
+            WHEN MAX(LAST_RECORD)::date = (current_date - INTERVAL '1 day')
+                THEN MAX(LAST_RECORD)::date
             ELSE (current_date - INTERVAL '1 day')::date
         END AS max_report_date
     FROM crashes.crashes
@@ -790,7 +790,7 @@ WITH date_range AS (
              AND extract(day FROM current_date) <= 9
             THEN date_trunc('year', current_date)
             -- Otherwise: exclusive end = max(REPORTDATE)+1
-            ELSE MAX(REPORTDATE)::DATE + INTERVAL '1 day'
+            ELSE MAX(LAST_RECORD)::DATE + INTERVAL '1 day'
         END AS max_report_date_excl
     FROM crashes.crashes
 ),

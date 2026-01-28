@@ -24,7 +24,7 @@ group by 1
 SELECT DISTINCT strftime('%Y', REPORTDATE) AS year_string
 FROM crashes.crashes
 WHERE strftime('%Y', REPORTDATE) BETWEEN '2017' 
-    AND (SELECT strftime('%Y', MAX(REPORTDATE)) FROM crashes.crashes)
+    AND (SELECT strftime('%Y', MAX(LAST_RECORD)) FROM crashes.crashes)
 ORDER BY year_string DESC;
 ```
 
@@ -32,7 +32,7 @@ ORDER BY year_string DESC;
 SELECT DISTINCT CAST(DATE_PART('year', REPORTDATE) AS INTEGER) AS year_integer
 FROM crashes.crashes
 WHERE DATE_PART('year', REPORTDATE) BETWEEN 2017
-    AND (SELECT CAST(DATE_PART('year', MAX(REPORTDATE)) AS INTEGER) FROM crashes.crashes)
+    AND (SELECT CAST(DATE_PART('year', MAX(LAST_RECORD)) AS INTEGER) FROM crashes.crashes)
     AND DATE_PART('year', REPORTDATE) <> DATE_PART('year', CURRENT_DATE)
 ORDER BY year_integer DESC;
 
@@ -132,8 +132,8 @@ WITH date_range AS (
   SELECT
     '${inputs.date_range.start}'::DATE AS start_date,
     CASE
-      WHEN '${inputs.date_range.end}'::DATE >= (SELECT CAST(MAX(REPORTDATE) AS DATE) FROM crashes.crashes)
-        THEN (SELECT MAX(REPORTDATE) FROM crashes.crashes)
+      WHEN '${inputs.date_range.end}'::DATE >= (SELECT CAST(MAX(LAST_RECORD) AS DATE) FROM crashes.crashes)
+        THEN (SELECT MAX(LAST_RECORD) FROM crashes.crashes)
       ELSE '${inputs.date_range.end}'::DATE + INTERVAL '1 day'
     END AS end_date
 ),
@@ -179,8 +179,8 @@ WITH
     SELECT
       CASE 
           WHEN '${inputs.date_range.end}'::DATE >= 
-               (SELECT CAST(MAX(REPORTDATE) AS DATE) FROM crashes.crashes) 
-            THEN (SELECT MAX(REPORTDATE) FROM crashes.crashes)
+               (SELECT CAST(MAX(LAST_RECORD) AS DATE) FROM crashes.crashes) 
+            THEN (SELECT MAX(LAST_RECORD) FROM crashes.crashes)
           ELSE '${inputs.date_range.end}'::DATE + INTERVAL '1 day'
       END AS current_end_date,
       '${inputs.date_range.start}'::DATE AS current_start_date
@@ -222,7 +222,7 @@ WITH
           SELECT MIN(x) 
           FROM (VALUES ${inputs.multi_year.value}) AS t(x)
         )
-        AND (SELECT strftime('%Y', MAX(REPORTDATE)) FROM crashes.crashes)
+        AND (SELECT strftime('%Y', MAX(LAST_RECORD)) FROM crashes.crashes)
     ) unique_years
     WHERE year_string IN ${inputs.multi_year.value}
     ORDER BY year_string DESC
@@ -278,8 +278,8 @@ WITH
     SELECT
       CASE 
           WHEN '${inputs.date_range.end}'::DATE >= 
-               (SELECT CAST(MAX(REPORTDATE) AS DATE) FROM crashes.crashes) 
-            THEN (SELECT MAX(REPORTDATE) FROM crashes.crashes)
+               (SELECT CAST(MAX(LAST_RECORD) AS DATE) FROM crashes.crashes) 
+            THEN (SELECT MAX(LAST_RECORD) FROM crashes.crashes)
           ELSE '${inputs.date_range.end}'::DATE + INTERVAL '1 day'
       END AS current_end_date,
       '${inputs.date_range.start}'::DATE AS current_start_date
@@ -315,7 +315,7 @@ WITH
           SELECT MIN(x) 
           FROM (VALUES ${inputs.multi_year.value}) AS t(x)
         )
-        AND (SELECT strftime('%Y', MAX(REPORTDATE)) FROM crashes.crashes)
+        AND (SELECT strftime('%Y', MAX(LAST_RECORD)) FROM crashes.crashes)
     ) unique_years
     WHERE year_string IN ${inputs.multi_year.value}
     ORDER BY year_string DESC

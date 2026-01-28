@@ -42,52 +42,14 @@ from hin.hin
 group by all
 ```
 
-```sql barchart_mode
-WITH 
-    combinations AS (
-        SELECT DISTINCT
-            MODE,
-            SEVERITY
-        FROM crashes.crashes
-        WHERE SEVERITY IN ${inputs.multi_severity.value}
-    ),
-    counts AS (
-        SELECT
-            MODE,
-            SEVERITY,
-            SUM(COUNT) AS sum_count
-        FROM crashes.crashes
-        WHERE SEVERITY IN ${inputs.multi_severity.value}
-          AND REPORTDATE BETWEEN ('${inputs.date_range.start}'::DATE)
-                              AND (('${inputs.date_range.end}'::DATE) + INTERVAL '1 day')
-          AND AGE BETWEEN ${inputs.min_age.value}
-                        AND (
-                            CASE 
-                                WHEN ${inputs.min_age.value} <> 0 
-                                AND ${inputs.max_age.value} = 120
-                                THEN 119
-                                ELSE ${inputs.max_age.value}
-                            END
-                        )
-        GROUP BY MODE, SEVERITY
-    )
-SELECT
-    c.MODE,
-    c.SEVERITY,
-    COALESCE(cnt.sum_count, 0) AS sum_count
-FROM combinations c
-LEFT JOIN counts cnt 
-    ON c.MODE = cnt.MODE AND c.SEVERITY = cnt.SEVERITY;
-```
-
 ```sql period_comp_mode
 WITH 
   report_date_range AS (
     SELECT
       CASE 
         WHEN '${inputs.date_range.end}'::DATE 
-             >= (SELECT MAX(REPORTDATE) FROM crashes.crashes)::DATE
-        THEN (SELECT MAX(REPORTDATE) FROM crashes.crashes)::DATE + INTERVAL '1 day'
+             >= (SELECT MAX(LAST_RECORD) FROM crashes.crashes)::DATE
+        THEN (SELECT MAX(LAST_RECORD) FROM crashes.crashes)::DATE + INTERVAL '1 day'
         ELSE '${inputs.date_range.end}'::DATE + INTERVAL '1 day'
       END   AS end_date,
       '${inputs.date_range.start}'::DATE AS start_date
@@ -98,7 +60,7 @@ WITH
       end_date,
       CASE
         WHEN start_date = DATE_TRUNC('year', '${inputs.date_range.end}'::DATE)
-         AND '${inputs.date_range.end}'::DATE = (SELECT MAX(REPORTDATE) FROM crashes.crashes)::DATE
+         AND '${inputs.date_range.end}'::DATE = (SELECT MAX(LAST_RECORD) FROM crashes.crashes)::DATE
         THEN EXTRACT(YEAR FROM '${inputs.date_range.end}'::DATE)::VARCHAR || ' YTD'
         ELSE
           strftime(start_date, '%m/%d/%y')
@@ -186,7 +148,7 @@ WITH
     SELECT
       CASE
         WHEN (SELECT start_date FROM date_info) = DATE_TRUNC('year', '${inputs.date_range.end}'::DATE)
-         AND '${inputs.date_range.end}'::DATE = (SELECT MAX(REPORTDATE) FROM crashes.crashes)::DATE
+         AND '${inputs.date_range.end}'::DATE = (SELECT MAX(LAST_RECORD) FROM crashes.crashes)::DATE
         THEN EXTRACT(YEAR FROM prior_end_date)::VARCHAR || ' YTD'
         ELSE
           strftime(prior_start_date,   '%m/%d/%y')
@@ -238,8 +200,8 @@ WITH
         SELECT
         CASE 
             WHEN '${inputs.date_range.end}'::DATE 
-                >= (SELECT MAX(REPORTDATE) FROM crashes.crashes)::DATE
-            THEN (SELECT MAX(REPORTDATE) FROM crashes.crashes)::DATE + INTERVAL '1 day'
+                >= (SELECT MAX(LAST_RECORD) FROM crashes.crashes)::DATE
+            THEN (SELECT MAX(LAST_RECORD) FROM crashes.crashes)::DATE + INTERVAL '1 day'
             ELSE '${inputs.date_range.end}'::DATE + INTERVAL '1 day'
         END   AS end_date,
         '${inputs.date_range.start}'::DATE AS start_date
@@ -250,7 +212,7 @@ WITH
         end_date,
         CASE
             WHEN start_date = DATE_TRUNC('year', '${inputs.date_range.end}'::DATE)
-            AND '${inputs.date_range.end}'::DATE = (SELECT MAX(REPORTDATE) FROM crashes.crashes)::DATE
+            AND '${inputs.date_range.end}'::DATE = (SELECT MAX(LAST_RECORD) FROM crashes.crashes)::DATE
             THEN EXTRACT(YEAR FROM '${inputs.date_range.end}'::DATE)::VARCHAR || ' YTD'
             ELSE
             strftime(start_date, '%m/%d/%y')
@@ -343,7 +305,7 @@ WITH
         SELECT
         CASE
             WHEN (SELECT start_date FROM date_info) = DATE_TRUNC('year', '${inputs.date_range.end}'::DATE)
-            AND '${inputs.date_range.end}'::DATE = (SELECT MAX(REPORTDATE) FROM crashes.crashes)::DATE
+            AND '${inputs.date_range.end}'::DATE = (SELECT MAX(LAST_RECORD) FROM crashes.crashes)::DATE
             THEN EXTRACT(YEAR FROM prior_end_date)::VARCHAR || ' YTD'
             ELSE
             strftime(prior_start_date,   '%m/%d/%y')
@@ -382,8 +344,8 @@ report_date_range AS (
     SELECT
       CASE 
         WHEN '${inputs.date_range.end}'::DATE 
-             >= (SELECT MAX(REPORTDATE) FROM crashes.crashes)::DATE
-        THEN (SELECT MAX(REPORTDATE) FROM crashes.crashes)::DATE + INTERVAL '1 day'
+             >= (SELECT MAX(LAST_RECORD) FROM crashes.crashes)::DATE
+        THEN (SELECT MAX(LAST_RECORD) FROM crashes.crashes)::DATE + INTERVAL '1 day'
         ELSE '${inputs.date_range.end}'::DATE + INTERVAL '1 day'
       END   AS end_date,
       '${inputs.date_range.start}'::DATE AS start_date
@@ -573,8 +535,8 @@ report_date_range AS (
     SELECT
       CASE 
         WHEN '${inputs.date_range.end}'::DATE 
-             >= (SELECT MAX(REPORTDATE) FROM crashes.crashes)::DATE
-        THEN (SELECT MAX(REPORTDATE) FROM crashes.crashes)::DATE + INTERVAL '1 day'
+             >= (SELECT MAX(LAST_RECORD) FROM crashes.crashes)::DATE
+        THEN (SELECT MAX(LAST_RECORD) FROM crashes.crashes)::DATE + INTERVAL '1 day'
         ELSE '${inputs.date_range.end}'::DATE + INTERVAL '1 day'
       END   AS end_date,
       '${inputs.date_range.start}'::DATE AS start_date
@@ -783,8 +745,8 @@ WITH
         SELECT
         CASE 
             WHEN '${inputs.date_range.end}'::DATE 
-                >= (SELECT MAX(REPORTDATE) FROM crashes.crashes)::DATE
-            THEN (SELECT MAX(REPORTDATE) FROM crashes.crashes)::DATE + INTERVAL '1 day'
+                >= (SELECT MAX(LAST_RECORD) FROM crashes.crashes)::DATE
+            THEN (SELECT MAX(LAST_RECORD) FROM crashes.crashes)::DATE + INTERVAL '1 day'
             ELSE '${inputs.date_range.end}'::DATE + INTERVAL '1 day'
         END   AS end_date,
         '${inputs.date_range.start}'::DATE AS start_date
@@ -795,7 +757,7 @@ WITH
         end_date,
         CASE
             WHEN start_date = DATE_TRUNC('year', '${inputs.date_range.end}'::DATE)
-            AND '${inputs.date_range.end}'::DATE = (SELECT MAX(REPORTDATE) FROM crashes.crashes)::DATE
+            AND '${inputs.date_range.end}'::DATE = (SELECT MAX(LAST_RECORD) FROM crashes.crashes)::DATE
             THEN EXTRACT(YEAR FROM '${inputs.date_range.end}'::DATE)::VARCHAR || ' YTD'
             ELSE
             strftime(start_date, '%m/%d/%y')
@@ -894,7 +856,7 @@ WITH
         SELECT
         CASE
             WHEN (SELECT start_date FROM date_info) = DATE_TRUNC('year', '${inputs.date_range.end}'::DATE)
-            AND '${inputs.date_range.end}'::DATE = (SELECT MAX(REPORTDATE) FROM crashes.crashes)::DATE
+            AND '${inputs.date_range.end}'::DATE = (SELECT MAX(LAST_RECORD) FROM crashes.crashes)::DATE
             THEN EXTRACT(YEAR FROM prior_end_date)::VARCHAR || ' YTD'
             ELSE
             strftime(prior_start_date,   '%m/%d/%y')
@@ -934,8 +896,8 @@ report_date_range AS (
     SELECT
       CASE 
         WHEN '${inputs.date_range.end}'::DATE 
-             >= (SELECT MAX(REPORTDATE) FROM crashes.crashes)::DATE
-        THEN (SELECT MAX(REPORTDATE) FROM crashes.crashes)::DATE + INTERVAL '1 day'
+             >= (SELECT MAX(LAST_RECORD) FROM crashes.crashes)::DATE
+        THEN (SELECT MAX(LAST_RECORD) FROM crashes.crashes)::DATE + INTERVAL '1 day'
         ELSE '${inputs.date_range.end}'::DATE + INTERVAL '1 day'
       END   AS end_date,
       '${inputs.date_range.start}'::DATE AS start_date
@@ -1144,8 +1106,8 @@ WITH
         SELECT
         CASE 
             WHEN '${inputs.date_range.end}'::DATE 
-                >= (SELECT MAX(REPORTDATE) FROM crashes.crashes)::DATE
-            THEN (SELECT MAX(REPORTDATE) FROM crashes.crashes)::DATE + INTERVAL '1 day'
+                >= (SELECT MAX(LAST_RECORD) FROM crashes.crashes)::DATE
+            THEN (SELECT MAX(LAST_RECORD) FROM crashes.crashes)::DATE + INTERVAL '1 day'
             ELSE '${inputs.date_range.end}'::DATE + INTERVAL '1 day'
         END   AS end_date,
         '${inputs.date_range.start}'::DATE AS start_date
@@ -1156,7 +1118,7 @@ WITH
         end_date,
         CASE
             WHEN start_date = DATE_TRUNC('year', '${inputs.date_range.end}'::DATE)
-            AND '${inputs.date_range.end}'::DATE = (SELECT MAX(REPORTDATE) FROM crashes.crashes)::DATE
+            AND '${inputs.date_range.end}'::DATE = (SELECT MAX(LAST_RECORD) FROM crashes.crashes)::DATE
             THEN EXTRACT(YEAR FROM '${inputs.date_range.end}'::DATE)::VARCHAR || ' YTD'
             ELSE
             strftime(start_date, '%m/%d/%y')
@@ -1255,7 +1217,7 @@ WITH
         SELECT
         CASE
             WHEN (SELECT start_date FROM date_info) = DATE_TRUNC('year', '${inputs.date_range.end}'::DATE)
-            AND '${inputs.date_range.end}'::DATE = (SELECT MAX(REPORTDATE) FROM crashes.crashes)::DATE
+            AND '${inputs.date_range.end}'::DATE = (SELECT MAX(LAST_RECORD) FROM crashes.crashes)::DATE
             THEN EXTRACT(YEAR FROM prior_end_date)::VARCHAR || ' YTD'
             ELSE
             strftime(prior_start_date,   '%m/%d/%y')
@@ -1294,8 +1256,8 @@ report_date_range AS (
     SELECT
       CASE 
         WHEN '${inputs.date_range.end}'::DATE 
-             >= (SELECT MAX(REPORTDATE) FROM crashes.crashes)::DATE
-        THEN (SELECT MAX(REPORTDATE) FROM crashes.crashes)::DATE + INTERVAL '1 day'
+             >= (SELECT MAX(LAST_RECORD) FROM crashes.crashes)::DATE
+        THEN (SELECT MAX(LAST_RECORD) FROM crashes.crashes)::DATE + INTERVAL '1 day'
         ELSE '${inputs.date_range.end}'::DATE + INTERVAL '1 day'
       END   AS end_date,
       '${inputs.date_range.start}'::DATE AS start_date
@@ -1488,7 +1450,7 @@ WITH date_range AS (
              AND extract(day   FROM current_date) <= 9
             THEN date_trunc('year', current_date)
             -- Otherwise: exclusive end = max(REPORTDATE) + 1 day
-            ELSE MAX(REPORTDATE)::DATE + INTERVAL '1 day'
+            ELSE MAX(LAST_RECORD)::DATE + INTERVAL '1 day'
         END AS max_report_date_excl
     FROM crashes.crashes
 ),
@@ -1567,7 +1529,7 @@ WITH date_range AS (
              AND extract(day   FROM current_date) <= 9
             THEN date_trunc('year', current_date)
             -- Otherwise: exclusive end = max(REPORTDATE) + 1 day
-            ELSE MAX(REPORTDATE)::DATE + INTERVAL '1 day'
+            ELSE MAX(LAST_RECORD)::DATE + INTERVAL '1 day'
         END AS max_report_date_excl
     FROM crashes.crashes
 ),
@@ -1674,7 +1636,7 @@ WITH date_range AS (
              AND extract(day   FROM current_date) <= 9
             THEN date_trunc('year', current_date)
             -- Otherwise: exclusive end = max(REPORTDATE) + 1 day
-            ELSE MAX(REPORTDATE)::DATE + INTERVAL '1 day'
+            ELSE MAX(LAST_RECORD)::DATE + INTERVAL '1 day'
         END AS max_report_date_excl
     FROM crashes.crashes
 ),
@@ -1754,7 +1716,7 @@ WITH date_range AS (
              AND extract(day   FROM current_date) <= 9
             THEN date_trunc('year', current_date)
             -- Otherwise: exclusive end = max(REPORTDATE) + 1 day
-            ELSE MAX(REPORTDATE)::DATE + INTERVAL '1 day'
+            ELSE MAX(LAST_RECORD)::DATE + INTERVAL '1 day'
         END AS max_report_date_excl
     FROM crashes.crashes
 ),

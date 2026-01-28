@@ -38,8 +38,8 @@ group by 1
 ```sql inc_map
 WITH latest AS (
     SELECT 
-        MAX(REPORTDATE) AS raw_end_date,
-        date_trunc('day', MAX(REPORTDATE)) AS end_date
+        MAX(LAST_RECORD) AS raw_end_date,
+        date_trunc('day', MAX(LAST_RECORD)) AS end_date
     FROM crashes.crashes
 ),
 date_range AS (

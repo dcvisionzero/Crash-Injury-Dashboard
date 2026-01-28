@@ -29,7 +29,7 @@ GROUP BY 1
 SELECT DISTINCT strftime('%Y', REPORTDATE) AS year_string
 FROM crashes.crashes
 WHERE strftime('%Y', REPORTDATE) BETWEEN '2014' 
-    AND (SELECT strftime('%Y', MAX(REPORTDATE)) FROM crashes.crashes)
+    AND (SELECT strftime('%Y', MAX(LAST_RECORD)) FROM crashes.crashes)
 ORDER BY year_string DESC;
 ```
 
@@ -408,7 +408,7 @@ WITH
   crash_years AS (
     SELECT
       CAST(strftime('%Y', MIN(REPORTDATE)) AS INTEGER) AS min_year,
-      CAST(strftime('%Y', MAX(REPORTDATE)) AS INTEGER) AS max_year
+      CAST(strftime('%Y', MAX(LAST_RECORD)) AS INTEGER) AS max_year
     FROM crashes.crashes
   ),
   -- Yearly counts using the month-day window
@@ -489,7 +489,7 @@ WITH
   crash_years AS (
     SELECT
       CAST(strftime('%Y', MIN(REPORTDATE)) AS INTEGER) AS min_year,
-      CAST(strftime('%Y', MAX(REPORTDATE)) AS INTEGER) AS max_year
+      CAST(strftime('%Y', MAX(LAST_RECORD)) AS INTEGER) AS max_year
     FROM crashes.crashes
   ),
 
