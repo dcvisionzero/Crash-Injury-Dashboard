@@ -127,20 +127,35 @@ WITH
           WHEN '${inputs.date_range.end}'::DATE >= 
                (SELECT CAST(MAX(LAST_RECORD) AS DATE) FROM crashes.crashes) 
             THEN (SELECT MAX(LAST_RECORD) FROM crashes.crashes)
+          -- If user selected a full calendar year, do NOT add a day
+          WHEN strftime('${inputs.date_range.end}'::DATE, '%m-%d') = '12-31'
+            THEN '${inputs.date_range.end}'::DATE
           ELSE '${inputs.date_range.end}'::DATE + INTERVAL '1 day'
       END AS current_end_date,
       '${inputs.date_range.start}'::DATE AS current_start_date
   ),
   date_info AS (
     SELECT
-      current_start_date   AS start_date,
-      current_end_date     AS end_date,
-      EXTRACT(YEAR FROM current_end_date) AS current_year,
-      strftime(current_end_date, '%m-%d') AS month_day_end
+      current_start_date AS start_date,
+      current_end_date   AS end_date,
+      -- Always derive reporting year from user-selected end date
+      EXTRACT(YEAR FROM '${inputs.date_range.end}'::DATE) AS current_year,
+      -- Month-day cutoff depends on full-year vs YTD mode
+      CASE 
+        WHEN '${inputs.date_range.start}'::DATE = make_date(EXTRACT(YEAR FROM '${inputs.date_range.end}'::DATE)::INT, 1, 1)
+         AND '${inputs.date_range.end}'::DATE   = make_date(EXTRACT(YEAR FROM '${inputs.date_range.end}'::DATE)::INT, 12, 31)
+        THEN '12-31'
+        ELSE strftime(current_end_date, '%m-%d')
+      END AS month_day_end,
+      CASE 
+        WHEN '${inputs.date_range.start}'::DATE = make_date(EXTRACT(YEAR FROM '${inputs.date_range.end}'::DATE)::INT, 1, 1)
+         AND '${inputs.date_range.end}'::DATE   = make_date(EXTRACT(YEAR FROM '${inputs.date_range.end}'::DATE)::INT, 12, 31)
+        THEN TRUE
+        ELSE FALSE
+      END AS is_full_year
     FROM report_date_range
   ),
   years AS (
-    -- only 4 years: current_year-3 through current_year
     SELECT gs AS yr, d.current_year
     FROM date_info d, generate_series(current_year - 3, current_year) AS t(gs)
   ),
@@ -160,19 +175,23 @@ WITH
       SUM("COUNT") AS month_count,
       d.current_year
     FROM crashes.crashes, date_info d
-    WHERE CAST(strftime('%Y', REPORTDATE) AS BIGINT) BETWEEN (current_year - 3) AND current_year
+    WHERE CAST(strftime('%Y', REPORTDATE) AS BIGINT)
+          BETWEEN (current_year - 3) AND current_year
       AND crashes.SEVERITY IN ${inputs.multi_severity.value}
       AND crashes.MODE IN ${inputs.multi_mode_dd.value}
       AND crashes.AGE BETWEEN ${inputs.min_age.value}
                           AND (
                               CASE 
                                   WHEN ${inputs.min_age.value} <> 0 
-                                  AND ${inputs.max_age.value} = 120
+                                   AND ${inputs.max_age.value} = 120
                                   THEN 119
                                   ELSE ${inputs.max_age.value}
                               END
                           )
-      AND strftime(REPORTDATE, '%m-%d') <= month_day_end
+      AND (
+          d.is_full_year
+          OR strftime(REPORTDATE, '%m-%d') <= d.month_day_end
+      )
     GROUP BY yr, mo, d.current_year
   ),
   base AS (
