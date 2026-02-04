@@ -83,18 +83,26 @@ WITH
     ),
     date_info AS (
         SELECT
-        start_date,
-        end_date,
-        CASE
-            WHEN start_date = DATE_TRUNC('year', '${inputs.date_range.end}'::DATE)
-            AND '${inputs.date_range.end}'::DATE = (SELECT MAX(LAST_RECORD) FROM crashes.crashes)::DATE
-            THEN EXTRACT(YEAR FROM '${inputs.date_range.end}'::DATE)::VARCHAR || ' YTD'
-            ELSE
-            strftime(start_date, '%m/%d/%y')
-            || '-'
-            || strftime(end_date - INTERVAL '1 day', '%m/%d/%y')
-        END AS date_range_label,
-        (end_date - start_date) AS date_range_days
+            start_date,
+            end_date,
+            CASE
+                -- Full calendar year → "YYYY"
+                WHEN start_date = DATE_TRUNC('year', start_date)
+                AND end_date   = DATE_TRUNC('year', start_date) + INTERVAL '1 year'
+                THEN EXTRACT(YEAR FROM start_date)::VARCHAR
+
+                -- Current YTD → "YYYY YTD"
+                WHEN start_date = DATE_TRUNC('year', CURRENT_DATE)
+                AND '${inputs.date_range.end}'::DATE = end_date - INTERVAL '1 day'
+                THEN EXTRACT(YEAR FROM (end_date - INTERVAL '1 day'))::VARCHAR || ' YTD'
+
+                -- Default formatted range
+                ELSE
+                    strftime(start_date, '%m/%d/%y')
+                    || '-'
+                    || strftime(end_date - INTERVAL '1 day', '%m/%d/%y')
+            END AS date_range_label,
+            (end_date - start_date) AS date_range_days
         FROM report_date_range
     ),
     offset_period AS (
@@ -181,15 +189,23 @@ WITH
     ),
     prior_date_label AS (
         SELECT
-        CASE
-            WHEN (SELECT start_date FROM date_info) = DATE_TRUNC('year', '${inputs.date_range.end}'::DATE)
-            AND '${inputs.date_range.end}'::DATE = (SELECT MAX(LAST_RECORD) FROM crashes.crashes)::DATE
-            THEN EXTRACT(YEAR FROM prior_end_date)::VARCHAR || ' YTD'
-            ELSE
-            strftime(prior_start_date,   '%m/%d/%y')
-            || '-'
-            || strftime(prior_end_date - INTERVAL '1 day', '%m/%d/%y')
-        END AS prior_date_range_label
+            CASE
+                -- Full calendar year → "YYYY"
+                WHEN prior_start_date = DATE_TRUNC('year', prior_start_date)
+                AND prior_end_date   = DATE_TRUNC('year', prior_start_date) + INTERVAL '1 year'
+                THEN EXTRACT(YEAR FROM prior_start_date)::VARCHAR
+
+                -- Prior YTD → "YYYY YTD"
+                WHEN (SELECT start_date FROM date_info) = DATE_TRUNC('year', CURRENT_DATE)
+                AND '${inputs.date_range.end}'::DATE = (SELECT end_date FROM date_info) - INTERVAL '1 day'
+                THEN EXTRACT(YEAR FROM prior_end_date)::VARCHAR || ' YTD'
+
+                -- Default formatted range
+                ELSE
+                    strftime(prior_start_date, '%m/%d/%y')
+                    || '-'
+                    || strftime(prior_end_date - INTERVAL '1 day', '%m/%d/%y')
+            END AS prior_date_range_label
         FROM prior_date_info
     )
 SELECT 

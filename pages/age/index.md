@@ -154,24 +154,29 @@ report_date_range AS (
       END AS end_date,
       '${inputs.date_range.start}'::DATE AS start_date
 ),
-
 date_info AS (
     SELECT
-      start_date,
-      end_date,
-      CASE
-        WHEN start_date = DATE_TRUNC('year', '${inputs.date_range.end}'::DATE)
-         AND '${inputs.date_range.end}'::DATE = (SELECT MAX(LAST_RECORD)::DATE FROM crashes.crashes)
-        THEN EXTRACT(YEAR FROM end_date - INTERVAL '1 day')::VARCHAR || ' YTD'
-        ELSE
-          strftime(start_date, '%m/%d/%y')
-          || '-' ||
-          strftime(end_date - INTERVAL '1 day', '%m/%d/%y')
-      END AS current_period_range,
-      EXTRACT(YEAR FROM end_date - INTERVAL '1 day') % 100 AS current_year_short
+        start_date,
+        end_date,
+        CASE
+            -- Full calendar year → "YYYY"
+            WHEN start_date = DATE_TRUNC('year', start_date)
+             AND end_date   = DATE_TRUNC('year', start_date) + INTERVAL '1 year'
+            THEN EXTRACT(YEAR FROM start_date)::VARCHAR
+            -- Current YTD → "YYYY YTD"
+            WHEN start_date = DATE_TRUNC('year', CURRENT_DATE)
+             AND '${inputs.date_range.end}'::DATE = end_date - INTERVAL '1 day'
+            THEN EXTRACT(YEAR FROM (end_date - INTERVAL '1 day'))::VARCHAR || ' YTD'
+            -- Default formatted range
+            ELSE
+                strftime(start_date, '%m/%d/%y')
+                || '-'
+                || strftime(end_date - INTERVAL '1 day', '%m/%d/%y')
+        END AS current_period_range,
+        -- Abbreviated year (YY)
+        EXTRACT(YEAR FROM end_date - INTERVAL '1 day') % 100 AS current_year_short
     FROM report_date_range
 ),
-
 offset_period AS (
     SELECT
       start_date,
@@ -186,28 +191,32 @@ offset_period AS (
       END AS interval_offset
     FROM date_info
 ),
-
 prior_date_info AS (
     SELECT
       (SELECT start_date FROM date_info) - (SELECT interval_offset FROM offset_period) AS prior_start_date,
       (SELECT end_date   FROM date_info) - (SELECT interval_offset FROM offset_period) AS prior_end_date
 ),
-
 prior_date_label AS (
     SELECT
-      CASE
-        WHEN (SELECT start_date FROM date_info) = DATE_TRUNC('year', (SELECT end_date FROM date_info))
-         AND '${inputs.date_range.end}'::DATE = (SELECT MAX(LAST_RECORD)::DATE FROM crashes.crashes)
-        THEN EXTRACT(YEAR FROM prior_end_date - INTERVAL '1 day')::VARCHAR || ' YTD'
-        ELSE
-          strftime(prior_start_date, '%m/%d/%y')
-          || '-' ||
-          strftime(prior_end_date - INTERVAL '1 day', '%m/%d/%y')
-      END AS prior_period_range,
-      EXTRACT(YEAR FROM prior_end_date - INTERVAL '1 day') % 100 AS prior_year_short
+        CASE
+            -- Full calendar year → "YYYY"
+            WHEN prior_start_date = DATE_TRUNC('year', prior_start_date)
+             AND prior_end_date   = DATE_TRUNC('year', prior_start_date) + INTERVAL '1 year'
+            THEN EXTRACT(YEAR FROM prior_start_date)::VARCHAR
+            -- Prior YTD → "YYYY YTD"
+            WHEN (SELECT start_date FROM date_info) = DATE_TRUNC('year', CURRENT_DATE)
+             AND '${inputs.date_range.end}'::DATE = (SELECT end_date FROM date_info) - INTERVAL '1 day'
+            THEN EXTRACT(YEAR FROM prior_end_date)::VARCHAR || ' YTD'
+            -- Default formatted range
+            ELSE
+                strftime(prior_start_date, '%m/%d/%y')
+                || '-'
+                || strftime(prior_end_date - INTERVAL '1 day', '%m/%d/%y')
+        END AS prior_period_range,
+        -- Abbreviated year (YY)
+        EXTRACT(YEAR FROM prior_end_date - INTERVAL '1 day') % 100 AS prior_year_short
     FROM prior_date_info
 ),
-
 -- Buckets
 buckets(bucket_order, bucket_label, lower_bound, upper_bound) AS (
     VALUES
@@ -229,7 +238,6 @@ all_buckets AS (
     UNION ALL
     SELECT * FROM null_bucket
 ),
-
 -- Current-period injuries
 current_binned_raw AS (
     SELECT
@@ -257,7 +265,6 @@ current_binned_raw AS (
                     )
     GROUP BY ab.bucket_order, ab.bucket_label
 ),
-
 -- Prior-period injuries
 prior_binned_raw AS (
     SELECT
@@ -285,7 +292,6 @@ prior_binned_raw AS (
                     )
     GROUP BY ab.bucket_order, ab.bucket_label
 )
-
 -- Final union wrapped in subquery
 SELECT *
 FROM (
@@ -295,9 +301,7 @@ FROM (
         COALESCE(injuries, 0) AS Injuries,
         (SELECT current_period_range FROM date_info) AS YTD
     FROM current_binned_raw
-
     UNION ALL
-
     SELECT
         bucket_order,
         bucket_label || ' (''' || (SELECT prior_year_short FROM prior_date_label) || ')' AS bucket_label,
@@ -321,26 +325,32 @@ WITH
       END AS end_date,
       '${inputs.date_range.start}'::DATE AS start_date
   ),
-
   -- 2. Build a single label: YTD only if start=Jan 1 of the year AND end hits max data;
   --    otherwise always “MM/DD/YY–MM/DD/YY”
   date_info AS (
-    SELECT
-      start_date,
-      end_date,
-      CASE
-        WHEN start_date = DATE_TRUNC('year', '${inputs.date_range.end}'::DATE)
-         AND '${inputs.date_range.end}'::DATE = (SELECT MAX(LAST_RECORD)::DATE FROM crashes.crashes)
-        THEN EXTRACT(YEAR FROM '${inputs.date_range.end}'::DATE)::VARCHAR || ' YTD'
-        ELSE
-          strftime(start_date,            '%m/%d/%y')
-          || '-' ||
-          strftime(end_date - INTERVAL '1 day', '%m/%d/%y')
-      END AS current_period_range,
-      (end_date - start_date) AS date_range_days
-    FROM report_date_range
-  ),
+      SELECT
+          start_date,
+          end_date,
+          CASE
+              -- Full calendar year → "YYYY"
+              WHEN start_date = DATE_TRUNC('year', start_date)
+              AND end_date   = DATE_TRUNC('year', start_date) + INTERVAL '1 year'
+              THEN EXTRACT(YEAR FROM start_date)::VARCHAR
 
+              -- Current YTD → "YYYY YTD"
+              WHEN start_date = DATE_TRUNC('year', CURRENT_DATE)
+              AND '${inputs.date_range.end}'::DATE = end_date - INTERVAL '1 day'
+              THEN EXTRACT(YEAR FROM (end_date - INTERVAL '1 day'))::VARCHAR || ' YTD'
+
+              -- Default formatted range
+              ELSE
+                  strftime(start_date, '%m/%d/%y')
+                  || '-'
+                  || strftime(end_date - INTERVAL '1 day', '%m/%d/%y')
+          END AS current_period_range,
+          (end_date - start_date) AS date_range_days
+      FROM report_date_range
+  ),
   -- 3. Figure out your “offset” to compare prior spans
   offset_period AS (
     SELECT
@@ -356,29 +366,32 @@ WITH
       END AS interval_offset
     FROM date_info
   ),
-
   -- 4. Deduce the prior span’s start/end
   prior_date_info AS (
     SELECT
       (SELECT start_date      FROM date_info) - (SELECT interval_offset FROM offset_period) AS prior_start_date,
       (SELECT end_date        FROM date_info) - (SELECT interval_offset FROM offset_period) AS prior_end_date
   ),
-
   -- 5. Label that prior span with the same “YTD only-if” logic
   prior_date_label AS (
-    SELECT
-      CASE
-        WHEN (SELECT start_date FROM date_info) = DATE_TRUNC('year', (SELECT end_date FROM date_info))
-         AND '${inputs.date_range.end}'::DATE = (SELECT MAX(LAST_RECORD)::DATE FROM crashes.crashes)
-        THEN EXTRACT(YEAR FROM prior_end_date)::VARCHAR || ' YTD'
-        ELSE
-          strftime(prior_start_date,         '%m/%d/%y')
-          || '-' ||
-          strftime(prior_end_date - INTERVAL '1 day', '%m/%d/%y')
-      END AS prior_period_range
-    FROM prior_date_info
+      SELECT
+          CASE
+              -- Full calendar year → "YYYY"
+              WHEN prior_start_date = DATE_TRUNC('year', prior_start_date)
+              AND prior_end_date   = DATE_TRUNC('year', prior_start_date) + INTERVAL '1 year'
+              THEN EXTRACT(YEAR FROM prior_start_date)::VARCHAR
+              -- Prior YTD → "YYYY YTD"
+              WHEN (SELECT start_date FROM date_info) = DATE_TRUNC('year', CURRENT_DATE)
+              AND '${inputs.date_range.end}'::DATE = (SELECT end_date FROM date_info) - INTERVAL '1 day'
+              THEN EXTRACT(YEAR FROM prior_end_date)::VARCHAR || ' YTD'
+              -- Default formatted range
+              ELSE
+                  strftime(prior_start_date, '%m/%d/%y')
+                  || '-'
+                  || strftime(prior_end_date - INTERVAL '1 day', '%m/%d/%y')
+          END AS prior_period_range
+      FROM prior_date_info
   ),
-
   -- 6. Define your age‐buckets (0–10, 11–20, …, >80, Null)
   buckets(bucket_order, bucket_label, lower_bound, upper_bound) AS (
     VALUES
@@ -400,7 +413,6 @@ WITH
     UNION ALL
     SELECT * FROM null_bucket
   ),
-
   -- 7. Aggregate current‐period injuries by bucket
   current_age AS (
     SELECT 
@@ -429,7 +441,6 @@ WITH
                      )
     GROUP BY ab.bucket_order, ab.bucket_label
   ),
-
   -- 8. Aggregate prior‐period injuries by bucket
   prior_age AS (
     SELECT 
@@ -458,7 +469,6 @@ WITH
                      )
     GROUP BY ab.bucket_order, ab.bucket_label
   )
-
 -- 9. Union current/prior, attach the correct period label, and sort
 SELECT 
   bucket_label,
@@ -471,9 +481,7 @@ FROM (
     ca.Injuries,
     (SELECT current_period_range FROM date_info) AS Period_range
   FROM current_age ca
-
   UNION ALL
-
   SELECT 
     pa.bucket_order,
     pa.bucket_label,
@@ -482,7 +490,6 @@ FROM (
   FROM prior_age pa
 ) AS combined
 ORDER BY bucket_order, Period_range;
-
 ```
 
 ```sql mode_severity_selection

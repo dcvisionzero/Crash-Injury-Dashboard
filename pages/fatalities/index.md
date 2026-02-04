@@ -151,9 +151,17 @@ group by 1
 ```sql yoy_text_fatal
 WITH date_range AS (
     SELECT
-        MAX(LAST_RECORD)::DATE + INTERVAL '1 day' AS max_report_date
-    FROM
-        crashes.crashes
+        CASE
+            -- First week of any year → freeze to last year's final date
+            WHEN extract(month FROM current_date) = 1
+             AND extract(day FROM current_date) <= 9
+            THEN (date_trunc('year', current_date) - INTERVAL '1 day')::DATE
+            -- Normal freeze logic: yesterday unless data is already current
+            WHEN MAX(LAST_RECORD)::date = (current_date - INTERVAL '1 day')
+                THEN MAX(LAST_RECORD)::date
+            ELSE (current_date - INTERVAL '1 day')::date
+        END AS max_report_date
+    FROM crashes.crashes
 ),
 params AS (
     SELECT
@@ -162,53 +170,50 @@ params AS (
         date_trunc('year', dr.max_report_date - interval '1 year') AS prior_year_start,
         dr.max_report_date - interval '1 year' AS prior_year_end,
         extract(year FROM dr.max_report_date) AS current_year,
-        extract(year FROM dr.max_report_date - interval '1 year') AS year_prior
-    FROM
-        date_range dr
+        extract(year FROM dr.max_report_date - interval '1 year') AS year_prior,
+        -- flag based on frozen date
+        CASE
+            WHEN extract(month FROM current_date) = 1
+             AND extract(day FROM current_date) <= 9
+            THEN TRUE
+            ELSE FALSE
+        END AS is_first_week
+    FROM date_range dr
 ),
 yearly_counts AS (
     SELECT
-        SUM(CASE
-            WHEN cr.REPORTDATE BETWEEN p.current_year_start AND p.current_year_end
-            THEN cr.COUNT ELSE 0 END) AS current_year_sum,
-        SUM(CASE
-            WHEN cr.REPORTDATE BETWEEN p.prior_year_start AND p.prior_year_end
-            THEN cr.COUNT ELSE 0 END) AS prior_year_sum
-    FROM
-        crashes.crashes AS cr
-        CROSS JOIN params p
-    WHERE
-        cr.SEVERITY = 'Fatal'
-        AND cr.REPORTDATE >= p.prior_year_start -- More efficient date filtering
-        AND cr.REPORTDATE <= p.current_year_end
+        SUM(CASE WHEN cr.REPORTDATE BETWEEN p.current_year_start AND p.current_year_end
+                 THEN cr.COUNT ELSE 0 END) AS current_year_sum,
+        SUM(CASE WHEN cr.REPORTDATE BETWEEN p.prior_year_start AND p.prior_year_end
+                 THEN cr.COUNT ELSE 0 END) AS prior_year_sum
+    FROM crashes.crashes AS cr
+    CROSS JOIN params p
+    WHERE cr.SEVERITY = 'Fatal'
+      AND cr.REPORTDATE >= p.prior_year_start
+      AND cr.REPORTDATE <= p.current_year_end
 )
 SELECT
     'Fatal' AS severity,
     yc.current_year_sum,
     yc.prior_year_sum,
     ABS(yc.current_year_sum - yc.prior_year_sum) AS difference,
-    CASE
-        WHEN yc.prior_year_sum <> 0
-        THEN ((yc.current_year_sum - yc.prior_year_sum)::numeric / yc.prior_year_sum)
-        ELSE NULL
-    END AS percentage_change,
-    CASE
-        WHEN (yc.current_year_sum - yc.prior_year_sum) > 0 THEN 'an increase of'
-        WHEN (yc.current_year_sum - yc.prior_year_sum) < 0 THEN 'a decrease of'
-        ELSE NULL
-    END AS percentage_change_text,
-    CASE
-        WHEN (yc.current_year_sum - yc.prior_year_sum) > 0 THEN 'more'
-        WHEN (yc.current_year_sum - yc.prior_year_sum) < 0 THEN 'fewer'
-        ELSE 'no change'
-    END AS difference_text,
+    CASE WHEN yc.prior_year_sum <> 0
+         THEN ((yc.current_year_sum - yc.prior_year_sum)::numeric / yc.prior_year_sum)
+         ELSE NULL END AS percentage_change,
+    CASE WHEN (yc.current_year_sum - yc.prior_year_sum) > 0 THEN 'an increase of'
+         WHEN (yc.current_year_sum - yc.prior_year_sum) < 0 THEN 'a decrease of'
+         ELSE NULL END AS percentage_change_text,
+    CASE WHEN (yc.current_year_sum - yc.prior_year_sum) > 0 THEN 'more'
+         WHEN (yc.current_year_sum - yc.prior_year_sum) < 0 THEN 'fewer'
+         ELSE 'no change' END AS difference_text,
     p.current_year,
     p.year_prior,
     CASE WHEN yc.current_year_sum = 1 THEN 'has' ELSE 'have' END AS has_have,
-    CASE WHEN yc.current_year_sum = 1 THEN 'fatality' ELSE 'fatalities' END AS fatality
-FROM
-    yearly_counts yc
-    CROSS JOIN params p;
+    CASE WHEN yc.current_year_sum = 1 THEN 'fatality' ELSE 'fatalities' END AS fatality,
+    strftime(p.current_year_end, '%m/%d/%y') AS max_report_date_formatted,
+    p.is_first_week
+FROM yearly_counts yc
+CROSS JOIN params p;
 ```
 
 ```sql inc_map
@@ -286,37 +291,105 @@ FROM
   total_modes_cte;
 ```
 
-As of <Value data={last_record} column="latest_record"/> there <Value data={yoy_text_fatal} column="has_have"/> been <Value data={yoy_text_fatal} column="current_year_sum" agg=sum/> <Value data={yoy_text_fatal} column="fatality"/> among all road users in <Value data={yoy_text_fatal} column="current_year" fmt='####","'/>   <Value data={yoy_text_fatal} column="difference" agg=sum fmt='####' /> <Value data={yoy_text_fatal} column="difference_text"/> (<Delta data={yoy_text_fatal} column="percentage_change" fmt="+0%;-0%;0%" downIsGood=True neutralMin=-0.00 neutralMax=0.00/>) compared to the same period in <Value data={yoy_text_fatal} column="year_prior" fmt="####."/>
+<ul class="markdown">
+  {#if yoy_text_fatal[0].is_first_week}
+    <li>
+      In <Value data={yoy_text_fatal} column="current_year" fmt="####"/> there
+      were <Value data={yoy_text_fatal} column="current_year_sum" agg=sum/>
+      <Value data={yoy_text_fatal} column="fatality"/>
+      among all road users,
+      <Value data={yoy_text_fatal} column="difference" agg=sum fmt="####"/>
+      <Value data={yoy_text_fatal} column="difference_text"/>
+      (<Delta
+        data={yoy_text_fatal}
+        column="percentage_change"
+        fmt="+0%;-0%;0%"
+        downIsGood={true}
+      />)
+      compared to the same period in
+      <Value data={yoy_text_fatal} column="year_prior" fmt="####."/>
+    </li>
+  {:else}
+    <li>
+      As of
+      <Value data={yoy_text_fatal} column="max_report_date_formatted"/> there
+      <Value data={yoy_text_fatal} column="has_have"/> been
+      <Value data={yoy_text_fatal} column="current_year_sum" agg=sum/>
+      <Value data={yoy_text_fatal} column="fatality"/>
+      among all road users in
+      <Value data={yoy_text_fatal} column="current_year" fmt='####","'/>
+      <Value data={yoy_text_fatal} column="difference" agg=sum fmt="####"/>
+      <Value data={yoy_text_fatal} column="difference_text"/>
+      (<Delta
+        data={yoy_text_fatal}
+        column="percentage_change"
+        fmt="+0%;-0%;0%"
+        downIsGood={true}
+      />)
+      compared to the same period in
+      <Value data={yoy_text_fatal} column="year_prior" fmt="####."/>
+    </li>
+  {/if}
+</ul>
 
 <DateRange
-start="2017-01-01"
-end={
+  start="2014-01-01"
+  end={
     (last_record && last_record[0] && last_record[0].end_date)
-    ? `${last_record[0].end_date}`
-    : (() => {
-        const twoDaysAgo = new Date(new Date().setDate(new Date().getDate() - 2));
-        return new Intl.DateTimeFormat('en-CA', {
+      ? (() => {
+          const fmt = new Intl.DateTimeFormat('en-CA', {
             timeZone: 'America/New_York'
-        }).format(twoDaysAgo);
+          });
+          // Parse YYYY-MM-DD string explicitly
+          const [year, month, day] = last_record[0].end_date.split('-').map(Number);
+          const recordDate = new Date(year, month - 1, day);
+          // Compute yesterday
+          const yesterday = new Date();
+          yesterday.setDate(yesterday.getDate() - 1);
+          const recordStr = fmt.format(recordDate);
+          const yesterdayStr = fmt.format(yesterday);
+          if (recordStr === yesterdayStr) {
+            // If record date is yesterday, just return it
+            return recordStr;
+          } else {
+            // Otherwise add one day
+            const plusOne = new Date(year, month - 1, day + 1);
+            return fmt.format(plusOne);
+          }
         })()
-}
-disableAutoDefault={true}
-name="date_range"
-presetRanges={['Last 7 Days', 'Last 30 Days', 'Last 90 Days', 'Last 6 Months', 'Last 12 Months', 'Month to Today', 'Last Month', 'Year to Today', 'Last Year']}
-defaultValue={
-  (() => {
-    const fmt = new Intl.DateTimeFormat('en-CA', {
-      timeZone: 'America/New_York'
-    });
-    // Get today's date in ET as YYYY-MM-DD
-    const todayStr = fmt.format(new Date());
-    const [year, month, day] = todayStr.split('-').map(Number);
-    // First week of the year = Jan 1–9 (ET)
-    const inFirstWeek = (month === 1 && day <= 9);
-    return inFirstWeek ? 'Last Year' : 'Year to Today';
-  })()
-}
-description="By default, there is a two-day lag after the latest update"
+      : (() => {
+          const twoDaysAgo = new Date();
+          twoDaysAgo.setDate(twoDaysAgo.getDate() - 2);
+          return new Intl.DateTimeFormat('en-CA', {
+            timeZone: 'America/New_York'
+          }).format(twoDaysAgo);
+        })()
+  }
+  name="date_range"
+  presetRanges={[
+    'Last 7 Days',
+    'Last 30 Days',
+    'Last 90 Days',
+    'Last 6 Months',
+    'Last 12 Months',
+    'Month to Today',
+    'Last Month',
+    'Year to Today',
+    'Last Year'
+  ]}
+  defaultValue={
+    (() => {
+      const fmt = new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'America/New_York'
+      });
+      // Get today's date in ET as YYYY-MM-DD
+      const todayStr = fmt.format(new Date());
+      const [year, month, day] = todayStr.split('-').map(Number);
+      // First week of the year = Jan 1–9 (ET)
+      const inFirstWeek = (month === 1 && day <= 9);
+      return inFirstWeek ? 'Last Year' : 'Year to Today';
+    })()
+  }
 />
 
 <Dropdown

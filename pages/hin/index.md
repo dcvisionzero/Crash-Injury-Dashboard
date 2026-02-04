@@ -126,18 +126,24 @@ WITH
     ),
     date_info AS (
         SELECT
-        start_date,
-        end_date,
-        CASE
-            WHEN start_date = DATE_TRUNC('year', '${inputs.date_range.end}'::DATE)
-            AND '${inputs.date_range.end}'::DATE = (SELECT MAX(LAST_RECORD) FROM crashes.crashes)::DATE
-            THEN EXTRACT(YEAR FROM '${inputs.date_range.end}'::DATE)::VARCHAR || ' YTD'
-            ELSE
-            strftime(start_date, '%m/%d/%y')
-            || '-'
-            || strftime(end_date - INTERVAL '1 day', '%m/%d/%y')
-        END AS date_range_label,
-        (end_date - start_date) AS date_range_days
+            start_date,
+            end_date,
+            CASE
+                -- Full calendar year → "YYYY"
+                WHEN start_date = DATE_TRUNC('year', start_date)
+                AND end_date   = DATE_TRUNC('year', start_date) + INTERVAL '1 year'
+                THEN EXTRACT(YEAR FROM start_date)::VARCHAR
+                -- Current YTD → "YYYY YTD"
+                WHEN start_date = DATE_TRUNC('year', CURRENT_DATE)
+                AND '${inputs.date_range.end}'::DATE = end_date - INTERVAL '1 day'
+                THEN EXTRACT(YEAR FROM (end_date - INTERVAL '1 day'))::VARCHAR || ' YTD'
+                -- Default formatted range
+                ELSE
+                    strftime(start_date, '%m/%d/%y')
+                    || '-'
+                    || strftime(end_date - INTERVAL '1 day', '%m/%d/%y')
+            END AS date_range_label,
+            (end_date - start_date) AS date_range_days
         FROM report_date_range
     ),
     offset_period AS (
@@ -160,11 +166,10 @@ WITH
         FROM hin_polygon.hin_polygon
         GROUP BY HIN_TIER
     ),
-
-    -- NEW: Flatten HIN_TIER_A, HIN_TIER_B, and HIN_TIER_C into one column
+    -- Flatten HIN_TIER_A, HIN_TIER_B, and HIN_TIER_C into one column
     crashes_with_tiers AS (
         SELECT
-            OBJECTID,  -- replace with your actual PK if different
+            OBJECTID,
             REPORTDATE,
             SEVERITY,
             MODE,
@@ -173,9 +178,7 @@ WITH
             COUNT
         FROM crashes.crashes
         WHERE HIN_TIER_A IS NOT NULL
-
         UNION ALL
-
         SELECT
             OBJECTID,
             REPORTDATE,
@@ -186,9 +189,7 @@ WITH
             COUNT
         FROM crashes.crashes
         WHERE HIN_TIER_B IS NOT NULL
-
         UNION ALL
-
         SELECT
             OBJECTID,
             REPORTDATE,
@@ -200,7 +201,6 @@ WITH
         FROM crashes.crashes
         WHERE HIN_TIER_C IS NOT NULL
     ),
-
     current_period AS (
         SELECT 
             cwt.HIN_TIER, 
@@ -257,15 +257,21 @@ WITH
     ),
     prior_date_label AS (
         SELECT
-        CASE
-            WHEN (SELECT start_date FROM date_info) = DATE_TRUNC('year', '${inputs.date_range.end}'::DATE)
-            AND '${inputs.date_range.end}'::DATE = (SELECT MAX(LAST_RECORD) FROM crashes.crashes)::DATE
-            THEN EXTRACT(YEAR FROM prior_end_date)::VARCHAR || ' YTD'
-            ELSE
-            strftime(prior_start_date,   '%m/%d/%y')
-            || '-'
-            || strftime(prior_end_date - INTERVAL '1 day', '%m/%d/%y')
-        END AS prior_date_range_label
+            CASE
+                -- Full calendar year → "YYYY"
+                WHEN prior_start_date = DATE_TRUNC('year', prior_start_date)
+                AND prior_end_date   = DATE_TRUNC('year', prior_start_date) + INTERVAL '1 year'
+                THEN EXTRACT(YEAR FROM prior_start_date)::VARCHAR
+                -- Prior YTD → "YYYY YTD"
+                WHEN (SELECT start_date FROM date_info) = DATE_TRUNC('year', CURRENT_DATE)
+                AND '${inputs.date_range.end}'::DATE = (SELECT end_date FROM date_info) - INTERVAL '1 day'
+                THEN EXTRACT(YEAR FROM prior_end_date)::VARCHAR || ' YTD'
+                -- Default formatted range
+                ELSE
+                    strftime(prior_start_date, '%m/%d/%y')
+                    || '-'
+                    || strftime(prior_end_date - INTERVAL '1 day', '%m/%d/%y')
+            END AS prior_date_range_label
         FROM prior_date_info
     ),
     totals AS (
@@ -316,18 +322,24 @@ report_date_range AS (
 ),
 date_info AS (
     SELECT
-    start_date,
-    end_date,
-    CASE
-        WHEN start_date = DATE_TRUNC('year', '${inputs.date_range.end}'::DATE)
-        AND '${inputs.date_range.end}'::DATE = (SELECT MAX(LAST_RECORD) FROM crashes.crashes)::DATE
-        THEN EXTRACT(YEAR FROM '${inputs.date_range.end}'::DATE)::VARCHAR || ' YTD'
-        ELSE
-        strftime(start_date, '%m/%d/%y')
-        || '-'
-        || strftime(end_date - INTERVAL '1 day', '%m/%d/%y')
-    END AS date_range_label,
-    (end_date - start_date) AS date_range_days
+        start_date,
+        end_date,
+        CASE
+            -- Full calendar year → "YYYY"
+            WHEN start_date = DATE_TRUNC('year', start_date)
+             AND end_date   = DATE_TRUNC('year', start_date) + INTERVAL '1 year'
+            THEN EXTRACT(YEAR FROM start_date)::VARCHAR
+            -- Current YTD → "YYYY YTD"
+            WHEN start_date = DATE_TRUNC('year', CURRENT_DATE)
+             AND '${inputs.date_range.end}'::DATE = end_date - INTERVAL '1 day'
+            THEN EXTRACT(YEAR FROM (end_date - INTERVAL '1 day'))::VARCHAR || ' YTD'
+            -- Default formatted range
+            ELSE
+                strftime(start_date, '%m/%d/%y')
+                || '-'
+                || strftime(end_date - INTERVAL '1 day', '%m/%d/%y')
+        END AS date_range_label,
+        (end_date - start_date) AS date_range_days
     FROM report_date_range
 ),
 offset_period AS (
@@ -350,7 +362,6 @@ unique_ROUTENAME AS (
     FROM hin_polygon.hin_polygon
     GROUP BY ROUTENAME
 ),
-
 -- Flatten ROUTENAME_A/B/C into one column
 crashes_with_ROUTENAME AS (
     SELECT
@@ -363,9 +374,7 @@ crashes_with_ROUTENAME AS (
         COUNT
     FROM crashes.crashes
     WHERE ROUTENAME_A IS NOT NULL
-
     UNION ALL
-
     SELECT
         OBJECTID,
         REPORTDATE,
@@ -376,9 +385,7 @@ crashes_with_ROUTENAME AS (
         COUNT
     FROM crashes.crashes
     WHERE ROUTENAME_B IS NOT NULL
-
     UNION ALL
-
     SELECT
         OBJECTID,
         REPORTDATE,
@@ -390,7 +397,6 @@ crashes_with_ROUTENAME AS (
     FROM crashes.crashes
     WHERE ROUTENAME_C IS NOT NULL
 ),
-
 current_period AS (
     SELECT 
         cwr.ROUTENAME, 
@@ -447,15 +453,21 @@ prior_date_info AS (
 ),
 prior_date_label AS (
     SELECT
-    CASE
-        WHEN (SELECT start_date FROM date_info) = DATE_TRUNC('year', '${inputs.date_range.end}'::DATE)
-        AND '${inputs.date_range.end}'::DATE = (SELECT MAX(LAST_RECORD) FROM crashes.crashes)::DATE
-        THEN EXTRACT(YEAR FROM prior_end_date)::VARCHAR || ' YTD'
-        ELSE
-        strftime(prior_start_date,   '%m/%d/%y')
-        || '-'
-        || strftime(prior_end_date - INTERVAL '1 day', '%m/%d/%y')
-    END AS prior_date_range_label
+        CASE
+            -- Full calendar year → "YYYY"
+            WHEN prior_start_date = DATE_TRUNC('year', prior_start_date)
+             AND prior_end_date   = DATE_TRUNC('year', prior_start_date) + INTERVAL '1 year'
+            THEN EXTRACT(YEAR FROM prior_start_date)::VARCHAR
+            -- Prior YTD → "YYYY YTD"
+            WHEN (SELECT start_date FROM date_info) = DATE_TRUNC('year', CURRENT_DATE)
+             AND '${inputs.date_range.end}'::DATE = (SELECT end_date FROM date_info) - INTERVAL '1 day'
+            THEN EXTRACT(YEAR FROM prior_end_date)::VARCHAR || ' YTD'
+            -- Default formatted range
+            ELSE
+                strftime(prior_start_date, '%m/%d/%y')
+                || '-'
+                || strftime(prior_end_date - INTERVAL '1 day', '%m/%d/%y')
+        END AS prior_date_range_label
     FROM prior_date_info
 ),
 totals AS (
@@ -508,7 +520,6 @@ crashes_with_tiers AS (
   FROM crashes.crashes
   WHERE HIN_TIER_C IS NOT NULL
 ),
-
 -- 1) Determine the current period bounds
 report_date_range AS (
   SELECT
@@ -520,7 +531,6 @@ report_date_range AS (
     END AS end_date,
     '${inputs.date_range.start}'::DATE AS start_date
 ),
-
 -- 2) Choose prior-window offset based on span length
 offset_period AS (
   SELECT
@@ -536,7 +546,6 @@ offset_period AS (
     END AS interval_offset
   FROM report_date_range AS rdr
 ),
-
 -- 3) Define windows
 current_window AS (
   SELECT start_date, end_date
@@ -549,16 +558,22 @@ prior_window AS (
   FROM report_date_range AS rdr
   CROSS JOIN offset_period AS op
 ),
-
 -- 4) Labels for current and prior windows
 date_info AS (
   SELECT
     start_date,
     end_date,
     CASE
-      WHEN start_date = DATE_TRUNC('year', '${inputs.date_range.end}'::DATE)
-       AND '${inputs.date_range.end}'::DATE = (SELECT MAX(LAST_RECORD) FROM crashes.crashes)::DATE
-      THEN EXTRACT(YEAR FROM '${inputs.date_range.end}'::DATE)::VARCHAR || ' YTD'
+      -- Full calendar year → "YYYY"
+      WHEN start_date = DATE_TRUNC('year', start_date)
+       AND end_date   = DATE_TRUNC('year', start_date) + INTERVAL '1 year'
+      THEN EXTRACT(YEAR FROM start_date)::VARCHAR
+
+      -- Current YTD → "YYYY YTD"
+      WHEN start_date = DATE_TRUNC('year', CURRENT_DATE)
+       AND '${inputs.date_range.end}'::DATE = end_date - INTERVAL '1 day'
+      THEN EXTRACT(YEAR FROM (end_date - INTERVAL '1 day'))::VARCHAR || ' YTD'
+      -- Default formatted range
       ELSE
         strftime(start_date, '%m/%d/%y')
         || '-'
@@ -575,9 +590,15 @@ prior_date_info AS (
 prior_date_label AS (
   SELECT
     CASE
-      WHEN (SELECT start_date FROM date_info) = DATE_TRUNC('year', '${inputs.date_range.end}'::DATE)
-       AND '${inputs.date_range.end}'::DATE = (SELECT MAX(LAST_RECORD) FROM crashes.crashes)::DATE
+      -- Full calendar year → "YYYY"
+      WHEN prior_start_date = DATE_TRUNC('year', prior_start_date)
+       AND prior_end_date   = DATE_TRUNC('year', prior_start_date) + INTERVAL '1 year'
+      THEN EXTRACT(YEAR FROM prior_start_date)::VARCHAR
+      -- Prior YTD → "YYYY YTD"
+      WHEN (SELECT start_date FROM date_info) = DATE_TRUNC('year', CURRENT_DATE)
+       AND '${inputs.date_range.end}'::DATE = (SELECT end_date FROM date_info) - INTERVAL '1 day'
       THEN EXTRACT(YEAR FROM prior_end_date)::VARCHAR || ' YTD'
+      -- Default formatted range
       ELSE
         strftime(prior_start_date, '%m/%d/%y')
         || '-'
@@ -585,7 +606,6 @@ prior_date_label AS (
     END AS prior_date_range_label
   FROM prior_date_info
 ),
-
 -- 5) Centralize age bounds
 age_bounds AS (
   SELECT
@@ -597,7 +617,6 @@ age_bounds AS (
       ELSE ${inputs.max_age.value}
     END::INTEGER AS max_age
 ),
-
 -- 6) Summaries for current and prior
 current_hin AS (
   SELECT SUM(COUNT) AS injuries_in_hin
@@ -643,7 +662,6 @@ prior_total AS (
     AND (SELECT end_date   FROM prior_window)
     AND AGE BETWEEN (SELECT min_age FROM age_bounds) AND (SELECT max_age FROM age_bounds)
 )
-
 -- 7) Final output
 SELECT
   1 AS period_sort,
@@ -656,9 +674,7 @@ SELECT
   END AS proportion_hin
 FROM current_hin AS ch
 CROSS JOIN current_total AS ct
-
 UNION ALL
-
 SELECT
   2 AS period_sort,
   (SELECT prior_date_range_label FROM prior_date_label) AS period,
@@ -670,7 +686,6 @@ SELECT
   END AS proportion_hin
 FROM prior_hin AS ph
 CROSS JOIN prior_total AS pt
-
 ORDER BY period_sort;
 ```
 

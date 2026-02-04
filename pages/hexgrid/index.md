@@ -231,93 +231,6 @@ LEFT JOIN crashes.crashes c
 GROUP BY h.GRID_ID;
 ```
 
-```sql hex_with_link
-SELECT 
-    h.*,
-    COALESCE(i.count, 0) AS count,
-    '/Crash-Injury-Dashboard/hexgrid/' || h.GRID_ID AS link
-FROM ${hex} AS h
-LEFT JOIN (
-    SELECT 
-        c.GRID_ID,
-        SUM(c.COUNT) AS count
-    FROM crashes.crashes c
-    WHERE 
-        c.MODE IN ${inputs.multi_mode_dd.value}
-        AND c.SEVERITY IN ${inputs.multi_severity.value}
-        AND c.REPORTDATE BETWEEN ('${inputs.date_range.start}'::DATE)
-        AND (('${inputs.date_range.end}'::DATE) + INTERVAL '1 day')
-        AND c.AGE BETWEEN ${inputs.min_age.value}
-                            AND (
-                                CASE 
-                                    WHEN ${inputs.min_age.value} <> 0 
-                                    AND ${inputs.max_age.value} = 120
-                                    THEN 119
-                                    ELSE ${inputs.max_age.value}
-                                END
-                                )
-    GROUP BY c.GRID_ID
-) AS i
-ON h.GRID_ID = i.GRID_ID;
-```
-
-```sql hex_with_link
-SELECT 
-    h.*,
-    '/Crash-Injury-Dashboard/hexgrid/' || h.GRID_ID AS link,
-    i.count,
-    i.ccns
-FROM ${hex} AS h
-LEFT JOIN (
-    SELECT 
-        c.GRID_ID,
-        SUM(c.COUNT) AS count,
-        string_agg(DISTINCT CAST(c.CCN AS VARCHAR), ', ' ORDER BY c.CCN) AS ccns
-    FROM crashes.crashes c
-    WHERE 
-        c.MODE IN ${inputs.multi_mode_dd.value}
-        AND c.SEVERITY IN ${inputs.multi_severity.value}
-        AND c.REPORTDATE BETWEEN ('${inputs.date_range.start}'::DATE)
-        AND (('${inputs.date_range.end}'::DATE) + INTERVAL '1 day')
-        AND c.AGE BETWEEN ${inputs.min_age.value}
-                        AND (
-                            CASE 
-                                WHEN ${inputs.min_age.value} <> 0 
-                                 AND ${inputs.max_age.value} = 120
-                                THEN 119
-                                ELSE ${inputs.max_age.value}
-                            END
-                        )
-    GROUP BY c.GRID_ID
-) AS i
-ON h.GRID_ID = i.GRID_ID;
-```
-
-```sql roadsegment_dropdown_a
-SELECT DISTINCT roadsegment
-FROM intersections.intersections
-CROSS JOIN UNNEST(split(INTERSECTIONNAME, ' & ')) AS t(roadsegment);
-```
-
-```sql roadsegment_dropdown_b
-SELECT DISTINCT t.roadsegment
-FROM intersections.intersections
-CROSS JOIN UNNEST(split(INTERSECTIONNAME, ' & ')) AS t(roadsegment)
-WHERE INTERSECTIONNAME LIKE '%${inputs.roadsegment_a.value}%';
-```
-
-```sql intersections_table
-SELECT
-    INTERSECTIONNAME,
-    '/hexgrid/' || GRID_ID AS link,
-    split(INTERSECTIONNAME, ' & ') AS ROADSEGMENT
-FROM intersections.intersections
-WHERE array_position(split(INTERSECTIONNAME, ' & '), '${inputs.roadsegment_a.value}') IS NOT NULL
-  AND array_position(split(INTERSECTIONNAME, ' & '), '${inputs.roadsegment_b.value}') IS NOT NULL
-GROUP BY INTERSECTIONNAME, GRID_ID
-LIMIT 5;
-```
-
 ```sql mode_severity_selection
 WITH
   -- 1. Get the total number of unique modes in the entire table
@@ -411,19 +324,25 @@ WITH
       END AS end_date,
       '${inputs.date_range.start}'::DATE AS start_date
   ),
-  date_info AS (
+date_info AS (
     SELECT
       CASE
-        WHEN start_date = DATE_TRUNC('year', '${inputs.date_range.end}'::DATE)
-         AND '${inputs.date_range.end}'::DATE = (SELECT MAX(LAST_RECORD) FROM crashes.crashes)::DATE
-        THEN EXTRACT(YEAR FROM '${inputs.date_range.end}'::DATE)::VARCHAR || ' YTD'
+        -- Full calendar year → "YYYY"
+        WHEN start_date = DATE_TRUNC('year', start_date)
+         AND end_date   = DATE_TRUNC('year', start_date) + INTERVAL '1 year'
+        THEN EXTRACT(YEAR FROM start_date)::VARCHAR
+        -- Current YTD → "YYYY YTD"
+        WHEN start_date = DATE_TRUNC('year', CURRENT_DATE)
+         AND '${inputs.date_range.end}'::DATE = end_date - INTERVAL '1 day'
+        THEN EXTRACT(YEAR FROM (end_date - INTERVAL '1 day'))::VARCHAR || ' YTD'
+        -- Default formatted range
         ELSE
           strftime(start_date, '%m/%d/%y')
           || '-'
           || strftime(end_date - INTERVAL '1 day', '%m/%d/%y')
       END AS current_period_range
     FROM report_date_range
-  )
+)
 SELECT current_period_range
 FROM date_info;
 ```
