@@ -12,7 +12,7 @@ Select any year to view the key efforts and initiatives the District has underta
     <Accordion single=true>
       <AccordionItem title="2014 Vision Zero Initiative Launch">
         <span slot="title" class="text-lg font-bold">
-        • 2014 Vision Zero Initiative Launch </span>  
+        • 2015 Vision Zero Initiative Launch </span>  
 
         ** ‣ Mayor Bowser’s Commitment**: Introduced the Vision Zero initiative aiming to eliminate traffic fatalities and serious injuries.
         
@@ -21,11 +21,6 @@ Select any year to view the key efforts and initiatives the District has underta
         ** ‣ Public Engagement**: Conducted community events to gather resident input on traffic safety concerns. 
         
         ** ‣ Crash Corridor Identification**: DDOT identified 15 arterial corridors responsible for over half of pedestrian and bicycle deaths between 2010 and 2014. This was DDOT’s first step toward developing a High Injury Network.
-      </AccordionItem>
-
-      <AccordionItem title="2015 Implementation Begins">
-        <span slot="title" class="text-lg font-bold">
-        • 2015 Implementation Begins </span>
 
         ** ‣ Safety Map**: The District launched an interactive online safety map, which captured thousands of concerns from people walking, biking, and driving in the District. 
         
@@ -71,12 +66,8 @@ Select any year to view the key efforts and initiatives the District has underta
         
         ** ‣ 20x2022 and Community Advocacy**: The District committed to building 20 miles of new protected bike lanes by 2022, in support of the Vision Zero goal and in response to traffic safety advocates. The District met that goal and continued in 2023 and beyond, with over 40 miles of protected bike lanes in place. DC Council introduced legislation to strengthen street safety measures, including increased penalties for dangerous driving behaviors.
       </AccordionItem>
-    </Accordion>
-  </Group>
 
-  <Group>
-    <Accordion>
-      <AccordionItem title="2020 Pandemic Response">
+            <AccordionItem title="2020 Pandemic Response">
         <span slot="title" class="text-lg font-bold">
         • 2020 Pandemic Response </span>
 
@@ -89,6 +80,12 @@ Select any year to view the key efforts and initiatives the District has underta
         ** ‣ Fatal Crash Follow-Ups**: DDOT and MPD began following up on each fatal crash with a site visit and the identification of any short-term measures to improve safety for all roadway users. Memos outlining the site visit findings and follow-up are posted online.
       </AccordionItem>
 
+    </Accordion>
+  </Group>
+
+  <Group>
+    <Accordion>
+    
       <AccordionItem title="2021 Emerging from the Pandemic">
         <span slot="title" class="text-lg font-bold">
         • 2021 Emerging from the Pandemic </span>

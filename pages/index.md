@@ -2020,7 +2020,7 @@ description="By default, there is a two-day lag after the latest update"
         <Alert status="positive">
           <div markdown style="font-size: 14px;">
 
-            Since Mayor Bowser launched Vision Zero in 2014, the District has transformed how we design and use our streets, strengthening laws, expanding education, redesigning roads and intersections, lowering speed limits, and increasing enforcement to make travel safer for everyone. Learn more: [Progress Timeline](/Progress/).
+            Since Mayor Bowser launched Vision Zero in 2015, the District has transformed how we design and use our streets, strengthening laws, expanding education, redesigning roads and intersections, lowering speed limits, and increasing enforcement to make travel safer for everyone. Learn more: [Progress Timeline](/Progress/).
 
           </div>
           <div markdown style="font-size: 14px;">
@@ -2109,7 +2109,7 @@ description="By default, there is a two-day lag after the latest update"
         <Alert status="positive">
           <div markdown style="font-size: 14px;">
 
-            Since Mayor Bowser launched Vision Zero in 2014, the District has transformed how we design and use our streets, strengthening laws, expanding education, redesigning roads and intersections, lowering speed limits, and increasing enforcement to make travel safer for everyone. [Progress Timeline](/Progress/).
+            Since Mayor Bowser launched Vision Zero in 2015, the District has transformed how we design and use our streets, strengthening laws, expanding education, redesigning roads and intersections, lowering speed limits, and increasing enforcement to make travel safer for everyone. [Progress Timeline](/Progress/).
 
           </div>
           <div markdown style="font-size: 14px;">
