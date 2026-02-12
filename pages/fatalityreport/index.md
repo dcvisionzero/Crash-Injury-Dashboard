@@ -458,7 +458,7 @@ WITH
     WHERE yr <> current_year
   )
 SELECT 
-  COALESCE(AVG(yearly_count), 0) AS average_count,
+  ROUND(COALESCE(AVG(yearly_count), 0), 0) AS average_count,
   CASE
     -- Full calendar year → remove YTD
     WHEN ANY_VALUE(date_info.start_date) = DATE_TRUNC('year', ANY_VALUE(date_info.start_date))
@@ -484,7 +484,6 @@ WITH
       ('${inputs.date_range.end}'::DATE + INTERVAL '1 day') AS current_end_date,
       '${inputs.date_range.start}'::DATE AS current_start_date
   ),
-
   -- Get min/max data years
   crash_years AS (
     SELECT
@@ -492,7 +491,6 @@ WITH
       CAST(strftime('%Y', MAX(LAST_RECORD)) AS INTEGER) AS max_year
     FROM crashes.crashes
   ),
-
   date_info AS (
     SELECT
       current_start_date   AS start_date,
@@ -501,7 +499,6 @@ WITH
       (current_end_date - INTERVAL '1 day')               AS inclusive_end_date,
       EXTRACT(YEAR FROM current_end_date - INTERVAL '1 day') AS current_year,
       CASE
-        -- "to Date" only when user’s end date is literally the inclusive end date we’re using
         WHEN current_start_date = DATE_TRUNC('year', current_end_date - INTERVAL '1 day')
              AND '${inputs.date_range.end}'::DATE = (current_end_date - INTERVAL '1 day')::DATE
           THEN 'to Date'
@@ -514,11 +511,9 @@ WITH
       END                   AS date_range_label,
       (current_end_date - current_start_date) AS date_range_days,
       strftime(current_start_date,                  '%m-%d') AS month_day_start,
-      -- IMPORTANT: month_day_end is based on inclusive end date, not exclusive
       strftime(current_end_date - INTERVAL '1 day', '%m-%d') AS month_day_end
     FROM report_date_range
   ),
-
   years AS (
     SELECT CAST(year_string AS INTEGER) AS yr
     FROM (
@@ -528,22 +523,13 @@ WITH
       CROSS JOIN date_info d
       CROSS JOIN crash_years cy
       WHERE
-        -- Lower bound: from the minimum of the selected years
         strftime('%Y', REPORTDATE) BETWEEN 
-          (
-            SELECT MIN(x) 
-            FROM (VALUES ${inputs.multi_year.value}) AS t(x)
-          )
-          -- Upper bound: not beyond the selected "current_year"
-          -- (so if user picks 2024 full year but data has 2025, we cap at 2024)
-          AND CAST(
-                LEAST(cy.max_year, d.current_year) AS VARCHAR
-              )
+          (SELECT MIN(x) FROM (VALUES ${inputs.multi_year.value}) AS t(x))
+          AND CAST(LEAST(cy.max_year, d.current_year) AS VARCHAR)
     ) unique_years
     WHERE year_string IN ${inputs.multi_year.value}
     ORDER BY year_string DESC
   ),
-
   -- Normalize MODE before grouping
   yearly_counts AS (
     SELECT 
@@ -560,7 +546,6 @@ WITH
              COUNT
       FROM crashes.crashes
     ) c
-      -- Use the same month-day window for each year
       ON c.REPORTDATE >= CAST(y.yr || '-' || d.month_day_start AS DATE)
      AND c.REPORTDATE <  CAST(y.yr || '-' || d.month_day_end   AS DATE) + INTERVAL '1 day'
      AND c.SEVERITY = 'Fatal'
@@ -576,15 +561,13 @@ WITH
                        )
     GROUP BY y.yr, c.SEVERITY
   ),
-
   current_year_count AS (
     SELECT yr, SEVERITY, year_count AS current_count
     FROM yearly_counts, date_info
     WHERE yr = current_year
   )
-  
 SELECT 
-  yc.yr AS Year,
+  y.yr AS Year,
   yc.SEVERITY,
   COALESCE(yc.year_count, 0) AS Count,
   COALESCE(cyc.current_count, 0) - COALESCE(yc.year_count, 0) AS Diff_from_current,
@@ -593,11 +576,12 @@ SELECT
     ELSE (COALESCE(cyc.current_count, 0) - COALESCE(yc.year_count, 0)) * 1.0 / yc.year_count
   END AS Percent_Diff_from_current,
   (SELECT date_range_label FROM date_info) AS Date_Range
-FROM yearly_counts yc
+FROM years y
+LEFT JOIN yearly_counts yc
+  ON y.yr = yc.yr
 LEFT JOIN current_year_count cyc
-  ON yc.SEVERITY = cyc.SEVERITY
- AND cyc.yr = (SELECT current_year FROM date_info)
-ORDER BY yc.yr DESC, yc.SEVERITY;
+  ON y.yr = cyc.yr
+ORDER BY y.yr DESC, yc.SEVERITY;
 ```
 
 ```sql mode_selection

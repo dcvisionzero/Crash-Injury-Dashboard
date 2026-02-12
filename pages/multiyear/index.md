@@ -164,7 +164,7 @@ filtered_years AS (
   WHERE yr <> CAST(strftime('%Y', current_date) AS INTEGER) -- exclude current year
 )
 SELECT 
-  COALESCE(AVG(yearly_count), 0) AS average_count,
+  ROUND(COALESCE(AVG(yearly_count), 0), 0) AS average_count,
   printf('''%02d⁃''%02d YTD Avg',
          MIN(yr) % 100,
          MAX(yr) % 100
@@ -414,7 +414,7 @@ WITH
     FROM allowed_years ay
   )
 SELECT
-  COALESCE(AVG(year_count), 0) AS average_count
+  ROUND(COALESCE(AVG(year_count), 0), 0) AS average_count
 FROM yearly_counts;
 ```
 
