@@ -338,6 +338,7 @@ WITH
                                 ELSE ${inputs.max_age.value}
                             END
                         )
+            AND WARD IN ${inputs.ward_selection.value}            
         GROUP BY MODE
     ),
     prior_period AS (
@@ -358,6 +359,7 @@ WITH
                                 ELSE ${inputs.max_age.value}
                             END
                         )
+            AND WARD IN ${inputs.ward_selection.value}            
         GROUP BY MODE
     ),
     total_counts AS (
@@ -639,6 +641,7 @@ WITH
                                 ELSE ${inputs.max_age.value}
                             END
                         )
+            AND WARD IN ${inputs.ward_selection.value}
         GROUP BY MODE
     ),
     prior_period AS (
@@ -659,6 +662,7 @@ WITH
                                 ELSE ${inputs.max_age.value}
                             END
                         )
+            AND WARD IN ${inputs.ward_selection.value}            
         GROUP BY MODE
     ),
     total_counts AS (
