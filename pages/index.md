@@ -1957,7 +1957,6 @@ description="By default, there is a two-day lag after the latest update"
       <Group>
         <DataTable data={period_comp_mode_3ytd} totalRow sort="current_period_sum desc" wrapTitles rowShading title="Year Over Year Comparison of {`${severity_selection[0].SEVERITY_SELECTION}`} by Road User">
           <Column id="MODE" title="Road User" description="*Fatal Only" wrap=true totalAgg="Total"/>
-          <Column id=ICON title=' ' contentType=image height=22px align=center totalAgg=" "/>
           <Column id="current_period_sum" title="{period_comp_mode_3ytd[0].current_period_range}"/>
           <Column id="prior_3yr_avg_sum" fmt="#,##0.0" description="Average counts are rounded to simplify reporting." title="{period_comp_mode_3ytd[0].prior_period_range}" />
           <Column id="difference" contentType="delta" fmt="#,##0.0" downIsGood title="Diff"/>
@@ -2184,8 +2183,8 @@ description="By default, there is a two-day lag after the latest update"
       </tr>
       <tr>
         <td><img src="https://raw.githubusercontent.com/rafaelmorenoco/Crash-Injury-Dashboard-Backend/main/Icons/unknown.png" alt="Other Icon" width="32"></td>
-        <td>Other</td>
-        <td>Includes motor-driven cycles (commonly referred to as mopeds and motorcycles), as well as personal mobility devices such as standing scooters, and others, including unknown classifications.</td>
+        <td>Other**</td>
+        <td>Includes motor-driven cycles (commonly referred to as mopeds and motorcycles), as well as personal mobility devices such as standing scooters, and others, including unknown classifications. **Major and minor injury only.</td>
       </tr>
     </tbody>
   </table>
