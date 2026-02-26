@@ -4,6 +4,7 @@ queries:
    - fatality: fatality.sql
    - last_record: last_record.sql
    - age_range: age_range.sql
+   - has_fatal: has_fatal.sql   
 sidebar_link: false
 ---
 {#if hin_rate[0].is_first_week}
@@ -682,7 +683,12 @@ FROM
       const [year, month, day] = todayStr.split('-').map(Number);
       // First week of the year = Jan 1–9 (ET)
       const inFirstWeek = (month === 1 && day <= 9);
-      return inFirstWeek ? 'Last Year' : 'Year to Today';
+      // Fatal count from fatal count query
+      const noFatalThisYear = (has_fatal[0].f_count === 0);
+      // If first week OR no fatal data → show Last Year
+      // Only show YTD when BOTH are false
+      const showLastYear = inFirstWeek || noFatalThisYear;
+      return showLastYear ? 'Last Year' : 'Year to Today';
     })()
   }
   description="By default, there is a two-day lag after the latest update"

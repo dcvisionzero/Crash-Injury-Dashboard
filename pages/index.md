@@ -3,6 +3,8 @@ title: DC Vision Zero Traffic Fatalities and Injuries
 queries:
    - last_record: last_record.sql
    - age_range: age_range.sql
+   - has_fatal: has_fatal.sql
+   - has_major: has_major.sql
 ---
 
 <Tabs>
@@ -1478,6 +1480,16 @@ WITH date_range AS (
         END AS max_report_date_excl
     FROM crashes.crashes
 ),
+-- Count Fatal and Major crashes in the current year (based on frozen date)
+severity_counts AS (
+    SELECT
+        SUM(CASE WHEN c.SEVERITY = 'Fatal' THEN c.COUNT ELSE 0 END) AS fatal_this_year,
+        SUM(CASE WHEN c.SEVERITY = 'Major' THEN c.COUNT ELSE 0 END) AS major_this_year
+    FROM crashes.crashes c
+    CROSS JOIN date_range dr
+    WHERE EXTRACT(YEAR FROM c.REPORTDATE) =
+          EXTRACT(YEAR FROM dr.max_report_date_excl - INTERVAL '1 day')
+),
 params AS (
     SELECT
         -- Current period: Jan 1 of the year before the exclusive end
@@ -1489,10 +1501,17 @@ params AS (
         -- Year labels
         extract(year FROM dr.max_report_date_excl - INTERVAL '1 day') AS current_year,
         extract(year FROM dr.max_report_date_excl - INTERVAL '1 year' - INTERVAL '1 day') AS year_prior,
-        -- Freeze flag
+        -- inFirstWeek OR (fatal=0 OR major=0)
         CASE
-            WHEN extract(month FROM current_date) = 1
-             AND extract(day   FROM current_date) <= 9
+            WHEN (
+                -- First week of data: Jan 1–9
+                (extract(month FROM current_date) = 1 AND extract(day FROM current_date) <= 9)
+                OR
+                -- Fallback: no Fatal OR no Major crashes yet this year
+                (SELECT fatal_this_year FROM severity_counts) = 0
+                OR
+                (SELECT major_this_year FROM severity_counts) = 0
+            )
             THEN TRUE
             ELSE FALSE
         END AS is_first_week
@@ -1507,6 +1526,7 @@ yearly_counts AS (
                 THEN cr.COUNT ELSE 0
             END
         ) AS current_year_sum,
+
         SUM(
             CASE
                 WHEN cr.REPORTDATE >= p.prior_year_start
@@ -1514,6 +1534,7 @@ yearly_counts AS (
                 THEN cr.COUNT ELSE 0
             END
         ) AS prior_year_sum
+
     FROM crashes.crashes cr
     CROSS JOIN params p
     WHERE cr.SEVERITY = 'Fatal'
@@ -1557,6 +1578,16 @@ WITH date_range AS (
         END AS max_report_date_excl
     FROM crashes.crashes
 ),
+-- Count Fatal and Major crashes in the current year (based on frozen date)
+severity_counts AS (
+    SELECT
+        SUM(CASE WHEN c.SEVERITY = 'Fatal' THEN c.COUNT ELSE 0 END) AS fatal_this_year,
+        SUM(CASE WHEN c.SEVERITY = 'Major' THEN c.COUNT ELSE 0 END) AS major_this_year
+    FROM crashes.crashes c
+    CROSS JOIN date_range dr
+    WHERE EXTRACT(YEAR FROM c.REPORTDATE) =
+          EXTRACT(YEAR FROM dr.max_report_date_excl - INTERVAL '1 day')
+),
 params AS (
     SELECT
         -- Current YTD window: Jan 1 of the year before exclusive end
@@ -1564,10 +1595,17 @@ params AS (
         dr.max_report_date_excl AS current_year_end_excl,
         -- Year label for current year
         extract(year FROM dr.max_report_date_excl - INTERVAL '1 day') AS current_year,
-        -- Freeze flag
+        -- inFirstWeek OR (fatal=0 OR major=0)
         CASE
-            WHEN extract(month FROM current_date) = 1
-             AND extract(day   FROM current_date) <= 9
+            WHEN (
+                -- First week of data: Jan 1–9
+                (extract(month FROM current_date) = 1 AND extract(day FROM current_date) <= 9)
+                OR
+                -- Fallback: no Fatal OR no Major crashes yet this year
+                (SELECT fatal_this_year FROM severity_counts) = 0
+                OR
+                (SELECT major_this_year FROM severity_counts) = 0
+            )
             THEN TRUE
             ELSE FALSE
         END AS is_first_week
@@ -1666,6 +1704,16 @@ WITH date_range AS (
         END AS max_report_date_excl
     FROM crashes.crashes
 ),
+-- Count Fatal and Major crashes in the current year (based on frozen date)
+severity_counts AS (
+    SELECT
+        SUM(CASE WHEN c.SEVERITY = 'Fatal' THEN c.COUNT ELSE 0 END) AS fatal_this_year,
+        SUM(CASE WHEN c.SEVERITY = 'Major' THEN c.COUNT ELSE 0 END) AS major_this_year
+    FROM crashes.crashes c
+    CROSS JOIN date_range dr
+    WHERE EXTRACT(YEAR FROM c.REPORTDATE) =
+          EXTRACT(YEAR FROM dr.max_report_date_excl - INTERVAL '1 day')
+),
 params AS (
     SELECT
         -- Current period: Jan 1 of the year before the exclusive end
@@ -1677,10 +1725,17 @@ params AS (
         -- Year labels
         extract(year FROM dr.max_report_date_excl - INTERVAL '1 day') AS current_year,
         extract(year FROM dr.max_report_date_excl - INTERVAL '1 year' - INTERVAL '1 day') AS year_prior,
-        -- Freeze flag
+        -- inFirstWeek OR (fatal=0 OR major=0)
         CASE
-            WHEN extract(month FROM current_date) = 1
-             AND extract(day   FROM current_date) <= 9
+            WHEN (
+                -- First week of data: Jan 1–9
+                (extract(month FROM current_date) = 1 AND extract(day FROM current_date) <= 9)
+                OR
+                -- Fallback: no Fatal OR no Major crashes yet this year
+                (SELECT fatal_this_year FROM severity_counts) = 0
+                OR
+                (SELECT major_this_year FROM severity_counts) = 0
+            )
             THEN TRUE
             ELSE FALSE
         END AS is_first_week
@@ -1746,6 +1801,16 @@ WITH date_range AS (
         END AS max_report_date_excl
     FROM crashes.crashes
 ),
+-- Count Fatal and Major crashes in the current year (based on frozen date)
+severity_counts AS (
+    SELECT
+        SUM(CASE WHEN c.SEVERITY = 'Fatal' THEN c.COUNT ELSE 0 END) AS fatal_this_year,
+        SUM(CASE WHEN c.SEVERITY = 'Major' THEN c.COUNT ELSE 0 END) AS major_this_year
+    FROM crashes.crashes c
+    CROSS JOIN date_range dr
+    WHERE EXTRACT(YEAR FROM c.REPORTDATE) =
+          EXTRACT(YEAR FROM dr.max_report_date_excl - INTERVAL '1 day')
+),
 params AS (
     SELECT
         -- Current YTD window: Jan 1 of the year before exclusive end
@@ -1753,10 +1818,17 @@ params AS (
         dr.max_report_date_excl AS current_year_end_excl,
         -- Year label for current year
         extract(year FROM dr.max_report_date_excl - INTERVAL '1 day') AS current_year,
-        -- Freeze flag
+        -- inFirstWeek OR (fatal=0 OR major=0)
         CASE
-            WHEN extract(month FROM current_date) = 1
-             AND extract(day   FROM current_date) <= 9
+            WHEN (
+                -- First week of data: Jan 1–9
+                (extract(month FROM current_date) = 1 AND extract(day FROM current_date) <= 9)
+                OR
+                -- Fallback: no Fatal OR no Major crashes yet this year
+                (SELECT fatal_this_year FROM severity_counts) = 0
+                OR
+                (SELECT major_this_year FROM severity_counts) = 0
+            )
             THEN TRUE
             ELSE FALSE
         END AS is_first_week
@@ -1923,12 +1995,23 @@ description="By default, there is a two-day lag after the latest update"
 /> 
 
 <Dropdown
-    data={unique_severity} 
-    name=multi_severity
-    value=SEVERITY
-    title="Severity"
-    multiple=true
-    defaultValue={['Fatal', 'Major']}
+data={unique_severity}
+name="multi_severity"
+value="SEVERITY"
+title="Severity"
+multiple={true}
+defaultValue={
+    (() => {
+    const today = new Date();
+    const day = today.getDate();
+    const notInFirstWeek = (day > 9);
+    const noMajorFatal = (has_fatal[0].f_count === 0 || has_major[0].m_count === 0);
+    const shouldIncludeMinor = notInFirstWeek && noMajorFatal;
+    return shouldIncludeMinor
+      ? ['Fatal', 'Major', 'Minor']
+      : ['Fatal', 'Major'];
+    })()
+}
 />
 
 <Dropdown 

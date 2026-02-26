@@ -4,6 +4,8 @@ queries:
    - anc_link: anc_link.sql
    - last_record: last_record.sql
    - age_range: age_range.sql
+   - has_fatal: has_fatal.sql
+   - has_major: has_major.sql
 sidebar_position: 4
 ---
 
@@ -344,12 +346,23 @@ description="By default, there is a two-day lag after the latest update"
 />
 
 <Dropdown
-    data={unique_severity} 
-    name=multi_severity
-    value=SEVERITY
-    title="Severity"
-    multiple=true
-    defaultValue={['Fatal', 'Major']}
+data={unique_severity}
+name="multi_severity"
+value="SEVERITY"
+title="Severity"
+multiple={true}
+defaultValue={
+    (() => {
+    const today = new Date();
+    const day = today.getDate();
+    const notInFirstWeek = (day > 9);
+    const noMajorFatal = (has_fatal[0].f_count === 0 || has_major[0].m_count === 0);
+    const shouldIncludeMinor = notInFirstWeek && noMajorFatal;
+    return shouldIncludeMinor
+      ? ['Fatal', 'Major', 'Minor']
+      : ['Fatal', 'Major'];
+    })()
+}
 />
 
 <Dropdown

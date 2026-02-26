@@ -4,6 +4,7 @@ queries:
    - fatality: fatality.sql
    - last_record: last_record.sql
    - age_range: age_range.sql
+   - has_fatal: has_fatal.sql
 sidebar_position: 1
 ---
 
@@ -163,6 +164,15 @@ WITH date_range AS (
         END AS max_report_date
     FROM crashes.crashes
 ),
+-- Count Fatal crashes in the current year (based on frozen date)
+fatal_counts AS (
+    SELECT
+        SUM(c.COUNT) AS fatal_this_year
+    FROM crashes.crashes c
+    CROSS JOIN date_range dr
+    WHERE c.SEVERITY = 'Fatal'
+      AND EXTRACT(YEAR FROM c.REPORTDATE) = EXTRACT(YEAR FROM dr.max_report_date)
+),
 params AS (
     SELECT
         date_trunc('year', dr.max_report_date) AS current_year_start,
@@ -171,10 +181,15 @@ params AS (
         dr.max_report_date - interval '1 year' AS prior_year_end,
         extract(year FROM dr.max_report_date) AS current_year,
         extract(year FROM dr.max_report_date - interval '1 year') AS year_prior,
-        -- flag based on frozen date
+        -- inFirstWeek OR noFatalThisYear
         CASE
-            WHEN extract(month FROM current_date) = 1
-             AND extract(day FROM current_date) <= 9
+            WHEN (
+                -- First week of data: Jan 1–9
+                (extract(month FROM current_date) = 1 AND extract(day FROM current_date) <= 9)
+                OR
+                -- Fallback: no Fatal crashes yet this year
+                (SELECT fatal_this_year FROM fatal_counts) = 0
+            )
             THEN TRUE
             ELSE FALSE
         END AS is_first_week
@@ -387,7 +402,12 @@ FROM
       const [year, month, day] = todayStr.split('-').map(Number);
       // First week of the year = Jan 1–9 (ET)
       const inFirstWeek = (month === 1 && day <= 9);
-      return inFirstWeek ? 'Last Year' : 'Year to Today';
+      // Fatal count from fatal count query
+      const noFatalThisYear = (has_fatal[0].f_count === 0);
+      // If first week OR no fatal data → show Last Year
+      // Only show YTD when BOTH are false
+      const showLastYear = inFirstWeek || noFatalThisYear;
+      return showLastYear ? 'Last Year' : 'Year to Today';
     })()
   }
 />
