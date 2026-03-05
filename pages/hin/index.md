@@ -860,8 +860,8 @@ description="By default, there is a two-day lag after the latest update"
             <Column id=difference contentType=delta downIsGood=True title="Diff"/>
             <Column id=percentage_change fmt='pct0' title="% Diff" totalAgg={hin_tier_table[0].total_percentage_change} totalFmt='pct0' /> 
         </DataTable>
-        <DataTable data={routename_tier_table} totalRow=true sort="current_period_sum desc" wrapTitles=true rowShading=true rows=8 title="Year Over Year Comparison of {`${mode_severity_selection[0].SEVERITY_SELECTION}`} for {`${mode_severity_selection[0].MODE_SELECTION}`} by HIN Roadway">
-            <Column id=ROUTENAME title=Roadway wrap=true totalAgg="Total"/>
+        <DataTable data={routename_tier_table} totalRow=true sort="current_period_sum desc" wrapTitles=true rowShading=true rows=8 title="Year Over Year Comparison of {`${mode_severity_selection[0].SEVERITY_SELECTION}`} for {`${mode_severity_selection[0].MODE_SELECTION}`} by HIN Corridor">
+            <Column id=ROUTENAME title=Corridor wrap=true totalAgg="Total"/>
             <Column id=current_period_sum title="{hin_tier_table[0].current_period_range}" />
             <Column id=prior_period_sum title="{hin_tier_table[0].prior_period_range}" />
             <Column id=difference contentType=delta downIsGood=True title="Diff"/>
