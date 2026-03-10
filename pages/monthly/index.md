@@ -384,6 +384,7 @@ description="By default, there is a two-day lag after the latest update"
     smooth={true}
     labels=true
     markers=true
+    showAllLabels={true}
   />
 </Chart>
 

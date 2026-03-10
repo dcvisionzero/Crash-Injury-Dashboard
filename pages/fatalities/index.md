@@ -241,7 +241,7 @@ SELECT
     ADDRESS,
     CCN,
     DeathCaseID,
-    replace(MODE, '*', '') || '-' || CCN || ' ' || DeathCaseID AS mode_ccn,
+    replace(MODE, '*', '') || ' ' || CCN || ' ' || DeathCaseID AS mode_ccn,
     CASE
         WHEN CAST(AGE AS INTEGER) = 120 THEN '-'
         ELSE CAST(CAST(AGE AS INTEGER) AS VARCHAR)
@@ -439,6 +439,17 @@ FROM
     description='Age 120 serves as a placeholder for missing age values in the records. However, missing values will be automatically excluded from the query if the default 0-120 range is changed by the user. To get a count of missing age values, go to the "Age Distribution" page.'
 />
 
+<script>
+  let isDesktop = false;
+
+  onMount(() => {
+    isDesktop = window.innerWidth >= 768;
+    const handleResize = () => { isDesktop = window.innerWidth >= 768; };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  });
+</script>
+
 <Grid cols=2>
     <Group>
         <div style="font-size: 14px;">
@@ -481,7 +492,14 @@ FROM
         </Note>
         <DataTable data={inc_map} link=link wrapTitles=true rowShading=true search=true rows=5>
             <Column id=REPORTDATE title="Date" fmt='mm/dd/yy hh:mm' wrap=true/>
-            <Column id=mode_ccn title="Road User - CCN - Case" wrap=true/>
+            {#if !isDesktop}
+                <Column id=mode_ccn title="Road User - CCN - Case" wrap=true/>
+            {/if}
+            {#if isDesktop}
+                <Column id=MODE title="Road User" wrap=true/>
+                <Column id=CCN title="CCN" wrap=true/>
+                <Column id=DeathCaseID title="Case" wrap=true/>
+            {/if}
             <Column id=Age/>
             <Column id=ADDRESS wrap=true/>
         </DataTable>
