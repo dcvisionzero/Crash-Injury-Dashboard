@@ -729,7 +729,7 @@ WITH date_range AS (
             THEN (date_trunc('year', current_date) - INTERVAL '1 day')::DATE
             -- Normal freeze logic: yesterday unless data is already current
             WHEN MAX(LAST_RECORD)::date = (current_date - INTERVAL '1 day')
-                THEN MAX(LAST_RECORD)::date
+                THEN MAX(LAST_RECORD)::date + INTERVAL '1 day'
             ELSE MAX(LAST_RECORD)::date + INTERVAL '1 day'
         END AS max_report_date
     FROM crashes.crashes
