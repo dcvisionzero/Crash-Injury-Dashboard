@@ -129,7 +129,6 @@ WITH
           WHEN '${inputs.date_range.end}'::DATE >= 
                (SELECT CAST(MAX(LAST_RECORD) AS DATE) FROM crashes.crashes) 
             THEN (SELECT MAX(LAST_RECORD) FROM crashes.crashes)
-          -- If user selected a full calendar year, do NOT add a day
           WHEN strftime('${inputs.date_range.end}'::DATE, '%m-%d') = '12-31'
             THEN '${inputs.date_range.end}'::DATE
           ELSE '${inputs.date_range.end}'::DATE + INTERVAL '1 day'
@@ -140,9 +139,7 @@ WITH
     SELECT
       current_start_date AS start_date,
       current_end_date   AS end_date,
-      -- Always derive reporting year from user-selected end date
       EXTRACT(YEAR FROM '${inputs.date_range.end}'::DATE) AS current_year,
-      -- Month-day cutoff depends on full-year vs YTD mode
       CASE 
         WHEN '${inputs.date_range.start}'::DATE = make_date(EXTRACT(YEAR FROM '${inputs.date_range.end}'::DATE)::INT, 1, 1)
          AND '${inputs.date_range.end}'::DATE   = make_date(EXTRACT(YEAR FROM '${inputs.date_range.end}'::DATE)::INT, 12, 31)
@@ -209,102 +206,32 @@ WITH
   ),
   avg_row AS (
     SELECT
-      printf('%02d–%02d Avg', MIN(Year) % 100, MAX(Year) % 100) AS Year,
       Month,
       Month_Name,
-      ROUND(AVG(Count),0) AS Count,
+      ROUND(AVG(Count), 0) AS Avg,
       current_year
     FROM base
-    WHERE Year BETWEEN current_year - 3 AND current_year - 1
+    WHERE Year BETWEEN current_year - 3 AND current_year
     GROUP BY Month, Month_Name, current_year
   )
-SELECT *
-FROM (
-  SELECT CAST(Year AS VARCHAR) AS Year, Month, Month_Name, Count, current_year
-  FROM base
-  UNION ALL
-  SELECT Year, Month, Month_Name, Count, current_year
-  FROM avg_row
-)
-ORDER BY 
-  Month,
-  CASE 
-    WHEN Year = CAST((current_year - 3) AS VARCHAR) THEN 1
-    WHEN Year = CAST((current_year - 2) AS VARCHAR) THEN 2
-    WHEN Year = CAST((current_year - 1) AS VARCHAR) THEN 3
-    WHEN Year LIKE '% Avg' THEN 4
-    WHEN Year = CAST(current_year AS VARCHAR) THEN 5
-  END;
-```
-
-```sql ytd_month_avg
-WITH 
-  report_date_range AS (
-    SELECT
-      CASE 
-          WHEN '${inputs.date_range.end}'::DATE >= 
-               (SELECT CAST(MAX(LAST_RECORD) AS DATE) FROM crashes.crashes) 
-            THEN (SELECT MAX(LAST_RECORD) FROM crashes.crashes)
-          ELSE '${inputs.date_range.end}'::DATE + INTERVAL '1 day'
-      END AS current_end_date,
-      '${inputs.date_range.start}'::DATE AS current_start_date
-  ),
-  date_info AS (
-    SELECT
-      current_start_date   AS start_date,
-      current_end_date     AS end_date,
-      EXTRACT(YEAR FROM current_end_date) AS current_year,
-      strftime(current_end_date, '%m-%d') AS month_day_end
-    FROM report_date_range
-  ),
-  monthly_counts AS (
-    SELECT
-      CAST(strftime('%Y', REPORTDATE) AS BIGINT) AS yr,
-      CAST(strftime('%m', REPORTDATE) AS BIGINT) AS mo,
-      SUM("COUNT") AS month_count
-    FROM crashes.crashes, date_info
-    WHERE CAST(strftime('%Y', REPORTDATE) AS BIGINT) BETWEEN (current_year - 4) AND current_year
-      AND crashes.SEVERITY IN ${inputs.multi_severity.value}
-      AND crashes.MODE IN ${inputs.multi_mode_dd.value}
-      AND crashes.AGE BETWEEN ${inputs.min_age.value}
-                          AND (
-                              CASE 
-                                  WHEN ${inputs.min_age.value} <> 0 
-                                  AND ${inputs.max_age.value} = 120
-                                  THEN 119
-                                  ELSE ${inputs.max_age.value}
-                              END
-                          )
-      AND strftime(REPORTDATE, '%m-%d') <= month_day_end
-    GROUP BY yr, mo
-  ),
-  filtered AS (
-    SELECT *
-    FROM monthly_counts, date_info
-    WHERE yr <> current_year
-  ),
-  avg_by_month AS (
-    SELECT
-      mo,
-      ROUND(AVG(month_count),0) AS Avg_Count,
-      MIN(yr) AS min_yr,
-      MAX(yr) AS max_yr
-    FROM filtered
-    GROUP BY mo
-  ),
-  months AS (
-    SELECT gs AS mo
-    FROM generate_series(1,12) t(gs)
-  )
 SELECT
-  m.mo AS Month,
-  strftime(make_date(2000, m.mo, 1), '%b') AS Month_Name,
-  COALESCE(a.Avg_Count, 0) AS Avg_Count,
-  printf('%02d–%02d YTD Avg', MIN(a.min_yr) % 100, MAX(a.max_yr) % 100) AS Year_Range_Label
-FROM months m
-LEFT JOIN avg_by_month a ON m.mo = a.mo
-GROUP BY m.mo, a.Avg_Count, a.min_yr, a.max_yr
-ORDER BY m.mo;
+  CAST(b.Year AS VARCHAR) AS Year,
+  b.Month,
+  b.Month_Name,
+  b.Count,
+  a.Avg,
+  b.current_year
+FROM base b
+LEFT JOIN avg_row a
+  ON b.Month = a.Month
+ORDER BY 
+  b.Month,
+  CASE 
+    WHEN b.Year = (b.current_year - 3) THEN 1
+    WHEN b.Year = (b.current_year - 2) THEN 2
+    WHEN b.Year = (b.current_year - 1) THEN 3
+    WHEN b.Year = b.current_year         THEN 4
+  END;
 ```
 
 <Dropdown
@@ -397,24 +324,35 @@ description="By default, there is a two-day lag after the latest update"
       formatter: function (params) {
         return params.value[1] === 0 ? '0' : params.value[1];
       }
-    }
+    },
+    tooltip: { show: false }   // prevents duplicate avg_3yr entries
   };
   const defaultPalette = [
-    '#03045E','#4d1070','#0077B6','#00B4d8','#90E0EF'
+    '#03045E','#0077B6','#00B4d8','#90E0EF','#CAF0F8'
   ];
 </script>
 
-<BarChart 
+
+<Chart 
   data={ytd_month}
+  x=Month 
   chartAreaHeight={300}
-  x="Month"
-  y="Count"
-  type=grouped
-  series=Year
-  labels={true}
-  seriesorder={ytd_month.Year}
   echartsOptions={{
     color: defaultPalette.slice().reverse(),
+    tooltip: {
+      trigger: 'axis',
+      formatter: function (params) {
+        const seen = new Set();
+        const filtered = params.filter(p => {
+          if (seen.has(p.seriesName)) return false;
+          seen.add(p.seriesName);
+          return true;
+        });
+        return filtered
+          .map(p => `${p.marker} ${p.seriesName}: ${p.value[1]}`)
+          .join('<br>');
+      }
+    },
     xAxis: {
       type: 'category',
       axisLabel: {
@@ -424,13 +362,31 @@ description="By default, there is a two-day lag after the latest update"
           return months[value - 1];
         }
       }
-    },
-    series: [
-      labelConfig, labelConfig, labelConfig, labelConfig, labelConfig
-    ]
+    }
   }}
 >
-</BarChart>
+  <!-- One bar series per year -->
+  <Bar 
+    x=Month 
+    y=Count 
+    series=Year 
+    type=grouped 
+    labels={true}
+    seriesorder={ytd_month.Year}
+    echartsOptions={{
+      series: [labelConfig, labelConfig, labelConfig, labelConfig, labelConfig]
+    }}
+  />
+  <!-- Line series for the 3-year average -->
+  <Line 
+    x=Month 
+    y=Avg
+    smooth={true}
+    labels=true
+    markers=true
+  />
+</Chart>
+
 
 <Note>
     The latest crash record in the dataset is from <Value data={last_record} column="latest_record"/> and the data was last updated on <Value data={last_record} column="latest_update"/> hrs. This lag factors into prior period comparisons.
