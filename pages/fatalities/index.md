@@ -491,17 +491,20 @@ FROM
             Select a fatality in the table to see more details about it and the post-crash follow-up.
         </Note>
         <DataTable data={inc_map} link=link wrapTitles=true rowShading=true search=true rows=5>
-            <Column id=REPORTDATE title="Date" fmt='mm/dd/yy hh:mm' wrap=true/>
             {#if !isDesktop}
+                <Column id=REPORTDATE title="Date" fmt='mm/dd/yy hh:mm' wrap=true/>
                 <Column id=mode_ccn title="Road User - CCN - Case" wrap=true/>
+                <Column id=Age/>
+                <Column id=ADDRESS wrap=true/>
             {/if}
             {#if isDesktop}
+                <Column id=REPORTDATE title="Date" fmt='mm/dd/yy hh:mm' wrap=true/>
                 <Column id=MODE title="Road User" wrap=true/>
                 <Column id=CCN title="CCN" wrap=true/>
                 <Column id=DeathCaseID title="Case" wrap=true/>
+                <Column id=Age/>
+                <Column id=ADDRESS wrap=true/>
             {/if}
-            <Column id=Age/>
-            <Column id=ADDRESS wrap=true/>
         </DataTable>
         <BarChart 
           data={Impairment}
