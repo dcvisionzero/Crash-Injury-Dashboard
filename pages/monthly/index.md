@@ -206,12 +206,16 @@ WITH
   ),
   avg_row AS (
     SELECT
+      printf('''%02d–''%02d Avg',
+            MIN(Year) % 100,
+            MAX(Year) % 100
+      ) AS Avg_Label,
       Month,
       Month_Name,
       ROUND(AVG(Count), 0) AS Avg,
       current_year
     FROM base
-    WHERE Year BETWEEN current_year - 3 AND current_year
+    WHERE Year BETWEEN current_year - 3 AND current_year - 1
     GROUP BY Month, Month_Name, current_year
   )
 SELECT
@@ -220,6 +224,7 @@ SELECT
   b.Month_Name,
   b.Count,
   a.Avg,
+  a.Avg_Label,
   b.current_year
 FROM base b
 LEFT JOIN avg_row a
@@ -230,7 +235,8 @@ ORDER BY
     WHEN b.Year = (b.current_year - 3) THEN 1
     WHEN b.Year = (b.current_year - 2) THEN 2
     WHEN b.Year = (b.current_year - 1) THEN 3
-    WHEN b.Year = b.current_year         THEN 4
+    WHEN a.Avg_Label IS NOT NULL       THEN 4
+    WHEN b.Year = b.current_year       THEN 5
   END;
 ```
 
@@ -318,6 +324,15 @@ description="By default, there is a two-day lag after the latest update"
 </div>
 
 <script>
+  let isDesktop = false;
+
+  onMount(() => {
+    isDesktop = window.innerWidth >= 768;
+    const handleResize = () => { isDesktop = window.innerWidth >= 768; };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  });
+
   const labelConfig = {
     label: {
       show: true,
@@ -325,68 +340,182 @@ description="By default, there is a two-day lag after the latest update"
         return params.value[1] === 0 ? '0' : params.value[1];
       }
     },
-    tooltip: { show: false }   // prevents duplicate avg_3yr entries
+    tooltip: { show: false }
   };
+
   const defaultPalette = [
     '#03045E','#0077B6','#00B4d8','#90E0EF','#CAF0F8'
   ];
+
+  $: ytd_month_h1 = ytd_month.filter(d => d.Month >= 1 && d.Month <= 6);
+  $: ytd_month_h2 = ytd_month.filter(d => d.Month >= 7 && d.Month <= 12);
 </script>
 
-
-<Chart 
-  data={ytd_month}
-  x=Month 
-  chartAreaHeight={300}
-  echartsOptions={{
-    color: defaultPalette.slice().reverse(),
-    tooltip: {
-      trigger: 'axis',
-      formatter: function (params) {
-        const seen = new Set();
-        const filtered = params.filter(p => {
-          if (seen.has(p.seriesName)) return false;
-          seen.add(p.seriesName);
-          return true;
-        });
-        return filtered
-          .map(p => `${p.marker} ${p.seriesName}: ${p.value[1]}`)
-          .join('<br>');
-      }
-    },
-    xAxis: {
-      type: 'category',
-      axisLabel: {
-        rotate: 90,
-        formatter: function (value) {
-          const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-          return months[value - 1];
+{#if isDesktop}
+  <Chart 
+    data={ytd_month}
+    x=Month 
+    chartAreaHeight={300}
+    echartsOptions={{
+      color: defaultPalette.slice().reverse(),
+      tooltip: {
+        trigger: 'axis',
+        formatter: function (params) {
+          const seen = new Set();
+          const filtered = params.filter(p => {
+            if (seen.has(p.seriesName)) return false;
+            seen.add(p.seriesName);
+            return true;
+          });
+          return filtered
+            .map(p => `${p.marker} ${p.seriesName}: ${p.value[1]}`)
+            .join('<br>');
+        }
+      },
+      xAxis: {
+        type: 'category',
+        axisLabel: {
+          rotate: 90,
+          formatter: function (value) {
+            const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+            return months[value - 1];
+          }
         }
       }
-    }
-  }}
->
-  <!-- One bar series per year -->
-  <Bar 
-    x=Month 
-    y=Count 
-    series=Year 
-    type=grouped 
-    labels={true}
-    seriesorder={ytd_month.Year}
-    echartsOptions={{
-      series: [labelConfig, labelConfig, labelConfig, labelConfig, labelConfig]
     }}
-  />
-  <!-- Line series for the 3-year average -->
-  <Line 
+  >
+    <Bar 
+      x=Month 
+      y=Count 
+      series=Year 
+      type=grouped 
+      labels={true}
+      seriesorder={ytd_month.Year}
+      echartsOptions={{
+        series: [labelConfig, labelConfig, labelConfig, labelConfig, labelConfig]
+      }}
+    />
+    <Line 
+      x=Month 
+      y=Avg
+      series=Avg_Label
+      smooth={true}
+      labels=true
+      markers=true
+      showAllLabels={true}
+    />
+  </Chart>
+{:else}
+  <!-- Jan to Jun -->
+  <Chart 
+    data={ytd_month_h1}
     x=Month 
-    y=Avg
-    smooth={true}
-    labels=true
-    markers=true
-    showAllLabels={true}
-  />
-</Chart>
+    chartAreaHeight={300}
+    echartsOptions={{
+      color: defaultPalette.slice().reverse(),
+      tooltip: {
+        trigger: 'axis',
+        formatter: function (params) {
+          const seen = new Set();
+          const filtered = params.filter(p => {
+            if (seen.has(p.seriesName)) return false;
+            seen.add(p.seriesName);
+            return true;
+          });
+          return filtered
+            .map(p => `${p.marker} ${p.seriesName}: ${p.value[1]}`)
+            .join('<br>');
+        }
+      },
+      xAxis: {
+        type: 'category',
+        axisLabel: {
+          rotate: 90,
+          formatter: function (value) {
+            const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+            return months[value - 1];
+          }
+        }
+      }
+    }}
+  >
+    <Bar 
+      x=Month 
+      y=Count 
+      series=Year 
+      type=grouped 
+      labels={true}
+      seriesorder={ytd_month_h1.Year}
+      echartsOptions={{
+        series: [labelConfig, labelConfig, labelConfig, labelConfig, labelConfig]
+      }}
+    />
+    <Line 
+      x=Month 
+      y=Avg
+      series=Avg_Label
+      smooth={true}
+      labels=true
+      markers=true
+      showAllLabels={true}
+    />
+  </Chart>
+
+  <!-- Jul to Dec -->
+  <Chart 
+    data={ytd_month_h2}
+    x=Month 
+    chartAreaHeight={300}
+    echartsOptions={{
+      color: defaultPalette.slice().reverse(),
+      tooltip: {
+        trigger: 'axis',
+        formatter: function (params) {
+          const seen = new Set();
+          const filtered = params.filter(p => {
+            if (seen.has(p.seriesName)) return false;
+            seen.add(p.seriesName);
+            return true;
+          });
+          return filtered
+            .map(p => `${p.marker} ${p.seriesName}: ${p.value[1]}`)
+            .join('<br>');
+        }
+      },
+      xAxis: {
+        type: 'category',
+        axisLabel: {
+          rotate: 90,
+          formatter: function (value) {
+            const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+            return months[value - 1];
+          }
+        }
+      }
+    }}
+  >
+    <Bar 
+      x=Month 
+      y=Count 
+      series=Year 
+      type=grouped 
+      labels={true}
+      seriesorder={ytd_month_h2.Year}
+      echartsOptions={{
+        series: [labelConfig, labelConfig, labelConfig, labelConfig, labelConfig]
+      }}
+    />
+    <Line 
+      x=Month 
+      y=Avg
+      series=Avg_Label
+      smooth={true}
+      labels=true
+      markers=true
+      showAllLabels={true}
+    />
+  </Chart>
+{/if}
 
 
 <Note>
