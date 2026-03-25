@@ -318,7 +318,7 @@ FROM
       (<Delta
         data={yoy_text_fatal}
         column="percentage_change"
-        fmt="+0%;-0%;0%"
+        fmt="0%;-0%;0%"
         downIsGood={true}
       />)
       compared to the same period in
@@ -338,7 +338,7 @@ FROM
       (<Delta
         data={yoy_text_fatal}
         column="percentage_change"
-        fmt="+0%;-0%;0%"
+        fmt="0%;-0%;0%"
         downIsGood={true}
       />)
       compared to the same period in

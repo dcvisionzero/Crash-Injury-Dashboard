@@ -5,6 +5,6 @@
 	export let data;
 </script>
 
-<EvidenceDefaultLayout {data} logo="https://app.box.com/shared/static/gumr231kd3x35lrvkl54qirbphvsnkkx.png" builtWithEvidence={false} fullWidth={true} hideTOC={true}>
+<EvidenceDefaultLayout {data} logo="https://app.box.com/shared/static/gumr231kd3x35lrvkl54qirbphvsnkkx.png" builtWithEvidence={false} fullWidth={true} hideTOC={true} githubRepo={"https://github.com/dcvisionzero/Crash-Injury-Dashboard"}>
 	<slot slot="content" />
 </EvidenceDefaultLayout>

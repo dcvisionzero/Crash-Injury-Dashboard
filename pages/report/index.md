@@ -26,7 +26,7 @@ sidebar_link: false
       (<Delta
         data={yoy_text_fatal}
         column="percentage_change"
-        fmt="+0%;-0%;0%"
+        fmt="0%;-0%;0%"
         downIsGood={true}
       />)
       compared to the same period in
@@ -46,7 +46,7 @@ sidebar_link: false
       (<Delta
         data={yoy_text_fatal}
         column="percentage_change"
-        fmt="+0%;-0%;0%"
+        fmt="0%;-0%;0%"
         downIsGood={true}
       />)
       compared to the same period in
@@ -64,7 +64,7 @@ sidebar_link: false
       (<Delta
         data={yoy_text_major_injury}
         column="percentage_change"
-        fmt="+0%;-0%;0%"
+        fmt="0%;-0%;0%"
         downIsGood={true}
       />)
       compared to the same period in
@@ -84,7 +84,7 @@ sidebar_link: false
       (<Delta
         data={yoy_text_major_injury}
         column="percentage_change"
-        fmt="+0%;-0%;0%"
+        fmt="0%;-0%;0%"
         downIsGood={true}
       />)
       compared to the same period in
