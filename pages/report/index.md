@@ -18,10 +18,10 @@ sidebar_link: false
   {#if yoy_text_fatal[0].is_first_week}
     <li>
       In <Value data={yoy_text_fatal} column="current_year" fmt="####"/> there
-      were <Value data={yoy_text_fatal} column="current_year_sum" agg=sum/>
+      were {yoy_text_fatal[0].current_year_sum}
       <strong><Value data={yoy_text_fatal} column="fatality"/></strong>
       among all road users,
-      <Value data={yoy_text_fatal} column="difference" agg=sum fmt="####"/>
+      {yoy_text_fatal[0].difference}
       <Value data={yoy_text_fatal} column="difference_text"/>
       (<Delta
         data={yoy_text_fatal}
@@ -37,11 +37,11 @@ sidebar_link: false
       As of
       <Value data={yoy_text_fatal} column="max_report_date_formatted"/> there
       <Value data={yoy_text_fatal} column="has_have"/> been
-      <Value data={yoy_text_fatal} column="current_year_sum" agg=sum/>
+      {yoy_text_fatal[0].current_year_sum}
       <strong><Value data={yoy_text_fatal} column="fatality"/></strong>
       among all road users in
       <Value data={yoy_text_fatal} column="current_year" fmt='####","'/>
-      <Value data={yoy_text_fatal} column="difference" agg=sum fmt="####"/>
+      {yoy_text_fatal[0].difference}
       <Value data={yoy_text_fatal} column="difference_text"/>
       (<Delta
         data={yoy_text_fatal}
@@ -56,10 +56,10 @@ sidebar_link: false
   {#if yoy_text_major_injury[0].is_first_week}
     <li>
       In <Value data={yoy_text_major_injury} column="current_year" fmt="####"/> there were
-      <Value data={yoy_text_major_injury} column="current_year_sum" agg=sum/>
+      {yoy_text_major_injury[0].current_year_sum}
       <strong><Value data={yoy_text_major_injury} column="major_injury"/></strong>
       among all road users,
-      <Value data={yoy_text_major_injury} column="difference" agg=sum fmt="####"/>
+      {yoy_text_major_injury[0].difference}
       <Value data={yoy_text_major_injury} column="difference_text"/>
       (<Delta
         data={yoy_text_major_injury}
@@ -75,11 +75,11 @@ sidebar_link: false
       As of
       <Value data={yoy_text_major_injury} column="max_report_date_formatted"/> there
       <Value data={yoy_text_major_injury} column="has_have"/> been
-      <Value data={yoy_text_major_injury} column="current_year_sum" agg=sum/>
+      {yoy_text_major_injury[0].current_year_sum}
       <strong><Value data={yoy_text_major_injury} column="major_injury"/></strong>
       among all road users in
       <Value data={yoy_text_major_injury} column="current_year" fmt='####","'/>
-      <Value data={yoy_text_major_injury} column="difference" agg=sum fmt="####"/>
+      {yoy_text_major_injury[0].difference}
       <Value data={yoy_text_major_injury} column="difference_text"/>
       (<Delta
         data={yoy_text_major_injury}
