@@ -506,19 +506,13 @@ CROSS JOIN totals;
 
 ```sql hin_rate
 WITH 
--- 0) Flatten HIN tier columns into one
+-- 0) Flatten HIN tier columns — one row per crash, regardless of how many tiers it overlaps
 crashes_with_tiers AS (
-  SELECT REPORTDATE, SEVERITY, MODE, AGE, COUNT, HIN_TIER_A AS HIN_TIER
+  SELECT REPORTDATE, SEVERITY, MODE, AGE, COUNT
   FROM crashes.crashes
   WHERE HIN_TIER_A IS NOT NULL
-  UNION ALL
-  SELECT REPORTDATE, SEVERITY, MODE, AGE, COUNT, HIN_TIER_B AS HIN_TIER
-  FROM crashes.crashes
-  WHERE HIN_TIER_B IS NOT NULL
-  UNION ALL
-  SELECT REPORTDATE, SEVERITY, MODE, AGE, COUNT, HIN_TIER_C AS HIN_TIER
-  FROM crashes.crashes
-  WHERE HIN_TIER_C IS NOT NULL
+     OR HIN_TIER_B IS NOT NULL
+     OR HIN_TIER_C IS NOT NULL
 ),
 -- 1) Determine the current period bounds
 report_date_range AS (
@@ -853,28 +847,35 @@ description="By default, there is a two-day lag after the latest update"
         </Note>
     </Group>
     <Group>
-        <DataTable data={hin_tier_table} totalRow=true sort="current_period_sum desc" wrapTitles=true rowShading=true title="Year Over Year Comparison of {`${mode_severity_selection[0].SEVERITY_SELECTION}`} for {`${mode_severity_selection[0].MODE_SELECTION}`} by HIN Tier">
-            <Column id=HIN_TIER title=Tier wrap=true totalAgg="Total"/>
-            <Column id=current_period_sum title="{hin_tier_table[0].current_period_range}" />
-            <Column id=prior_period_sum title="{hin_tier_table[0].prior_period_range}" />
-            <Column id=difference contentType=delta downIsGood=True title="Diff"/>
-            <Column id=percentage_change fmt='pct0' title="% Diff" totalAgg={hin_tier_table[0].total_percentage_change} totalFmt='pct0' /> 
-        </DataTable>
-        <DataTable data={routename_tier_table} totalRow=true sort="current_period_sum desc" wrapTitles=true rowShading=true rows=8 title="Year Over Year Comparison of {`${mode_severity_selection[0].SEVERITY_SELECTION}`} for {`${mode_severity_selection[0].MODE_SELECTION}`} by HIN Corridor">
-            <Column id=ROUTENAME title=Corridor wrap=true totalAgg="Total"/>
-            <Column id=current_period_sum title="{hin_tier_table[0].current_period_range}" />
-            <Column id=prior_period_sum title="{hin_tier_table[0].prior_period_range}" />
-            <Column id=difference contentType=delta downIsGood=True title="Diff"/>
-            <Column id=percentage_change fmt='pct0' title="% Diff" totalAgg={hin_tier_table[0].total_percentage_change} totalFmt='pct0' /> 
-        </DataTable>
         <DataTable data={hin_rate} wrapTitles=true rowShading=true title="{`${mode_severity_selection[0].SEVERITY_SELECTION}`} for {`${mode_severity_selection[0].MODE_SELECTION}`} in HIN vs All Roads in DC">
             <Column id=period />
             <Column id=injuries_in_hin title="In HIN"/>
             <Column id=total_injuries title="Overall" />
             <Column id=proportion_hin title="% in HIN" fmt='pct0' />
         </DataTable>
+        <DataTable data={hin_tier_table} sort="current_period_sum desc" wrapTitles=true rowShading=true title="Year Over Year Comparison of {`${mode_severity_selection[0].SEVERITY_SELECTION}`} for {`${mode_severity_selection[0].MODE_SELECTION}`} by HIN Tier">
+            <Column id=HIN_TIER title=Tier wrap=true totalAgg="Total"/>
+            <Column id=current_period_sum title="{hin_tier_table[0].current_period_range}" />
+            <Column id=prior_period_sum title="{hin_tier_table[0].prior_period_range}" />
+            <Column id=difference contentType=delta downIsGood=True title="Diff"/>
+            <Column id=percentage_change fmt='pct0' title="% Diff" totalAgg={hin_tier_table[0].total_percentage_change} totalFmt='pct0' /> 
+        </DataTable>
         <Note>
-            The latest crash record in the dataset is from <Value data={last_record} column="latest_record"/> and the data was last updated on <Value data={last_record} column="latest_update"/> hrs. This lag factors into prior period comparisons. The maximum comparison period is 5 years.
+            *Crashes at intersections of two tiers are counted in both. See the top table for a tier-independent total.
+        </Note>
+        <DataTable data={routename_tier_table} sort="current_period_sum desc" wrapTitles=true rowShading=true rows=8 title="Year Over Year Comparison of {`${mode_severity_selection[0].SEVERITY_SELECTION}`} for {`${mode_severity_selection[0].MODE_SELECTION}`} by HIN Corridor">
+            <Column id=ROUTENAME title=Corridor wrap=true totalAgg="Total"/>
+            <Column id=current_period_sum title="{hin_tier_table[0].current_period_range}" />
+            <Column id=prior_period_sum title="{hin_tier_table[0].prior_period_range}" />
+            <Column id=difference contentType=delta downIsGood=True title="Diff"/>
+            <Column id=percentage_change fmt='pct0' title="% Diff" totalAgg={hin_tier_table[0].total_percentage_change} totalFmt='pct0' /> 
+        </DataTable>
+        <Note>
+            *Crashes at intersections of two corridors are counted in both. See the top table for a corridor-independent total.
         </Note>
     </Group>
 </Grid>
+
+<Note>
+    The latest crash record in the dataset is from <Value data={last_record} column="latest_record"/> and the data was last updated on <Value data={last_record} column="latest_update"/> hrs. This lag factors into prior period comparisons. The maximum comparison period is 5 years.
+</Note>

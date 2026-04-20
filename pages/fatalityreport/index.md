@@ -197,19 +197,13 @@ GROUP BY all;
 
 ```sql hin_rate
 WITH 
--- 0) Flatten HIN tier columns into one
+-- 0) Flatten HIN tier columns — one row per crash, regardless of how many tiers it overlaps
 crashes_with_tiers AS (
-  SELECT REPORTDATE, SEVERITY, replace(MODE, '*', '') AS MODE, AGE, COUNT, HIN_TIER_A AS HIN_TIER
+  SELECT REPORTDATE, SEVERITY, replace(MODE, '*', '') AS MODE, AGE, COUNT
   FROM crashes.crashes
   WHERE HIN_TIER_A IS NOT NULL
-  UNION ALL
-  SELECT REPORTDATE, SEVERITY, replace(MODE, '*', '') AS MODE, AGE, COUNT, HIN_TIER_B AS HIN_TIER
-  FROM crashes.crashes
-  WHERE HIN_TIER_B IS NOT NULL
-  UNION ALL
-  SELECT REPORTDATE, SEVERITY, replace(MODE, '*', '') AS MODE, AGE, COUNT, HIN_TIER_C AS HIN_TIER
-  FROM crashes.crashes
-  WHERE HIN_TIER_C IS NOT NULL
+     OR HIN_TIER_B IS NOT NULL
+     OR HIN_TIER_C IS NOT NULL
 ),
 -- 1) Determine the current period bounds
 report_date_range AS (
