@@ -194,8 +194,8 @@ WITH
       current_end_date     AS end_date,
 
       CASE
-        WHEN current_start_date = DATE_TRUNC('year', current_end_date)
-            AND '${inputs.date_range.end}'::DATE = current_end_date::DATE
+        WHEN current_start_date = DATE_TRUNC('year', current_end_date - INTERVAL '1 day')
+            AND '${inputs.date_range.end}'::DATE >= (SELECT MAX(LAST_RECORD) FROM crashes.crashes)::DATE
           THEN 'to Date'
         ELSE
           '('
@@ -616,7 +616,7 @@ end={
 }
 disableAutoDefault={true}
 name="date_range"
-presetRanges={['Last 7 Days', 'Last 30 Days', 'Last 90 Days', 'Last 6 Months', 'Last 12 Months', 'Month to Today', 'Last Month', 'Year to Today', 'Last Year']}
+presetRanges={['Last 7 Days', 'Last 30 Days', 'Month to Today', 'Last Month', 'Year to Today']}
 defaultValue={
   (() => {
     const fmt = new Intl.DateTimeFormat('en-CA', {
