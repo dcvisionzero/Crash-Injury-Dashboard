@@ -321,6 +321,7 @@ WITH
     modes_and_severities AS (
         SELECT DISTINCT MODE
         FROM crashes.crashes
+        WHERE MODE <> 'Other'
     ),
     current_period AS (
         SELECT 
@@ -624,6 +625,8 @@ WITH
     modes_and_severities AS (
         SELECT DISTINCT MODE
         FROM crashes.crashes
+        WHERE MODE NOT LIKE 'Motorcyclist%'
+          AND MODE NOT LIKE 'Scooterist%'
     ),
     current_period AS (
         SELECT 
@@ -926,6 +929,17 @@ echartsOptions={{animation: false}}
     selectAllByDefault=true
 />
 
+<script>
+  let isDesktop = false;
+
+  onMount(() => {
+    isDesktop = window.innerWidth >= 768;
+    const handleResize = () => { isDesktop = window.innerWidth >= 768; };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  });
+</script>
+
 <Grid cols=2>
 
   <!-- Column 1: Fatalities (YTD vs prior YTD) -->
@@ -1011,23 +1025,64 @@ echartsOptions={{animation: false}}
     <div style="font-size: 14px;">
       <b>Percentage Breakdown:</b>
     </div>
+    {#if isDesktop}
+      <BarChart 
+        data={barchart_fatal}
+        chartAreaHeight=80
+        x=period_range
+        y=period_sum
+        xLabelWrap={true}
+        swapXY=true
+        yFmt=pct0
+        series=MODE
+        seriesColors={{
+          "Driver":        '#2563EB',
+          "Passenger":     '#38BDF8',
+          "Pedestrian":    '#F97316',
+          "Bicyclist":     '#10B981',
+          "Scooterist*":   '#A855F7',
+          "Motorcyclist*": '#EC4899',
+          "Other":         '#FACC15',
+          "Unknown":       '#94A3B8'
+        }}
+        labels={true}
+        type=stacked100
+        downloadableData=false
+        downloadableImage=false
+        leftPadding={10}
+      /> 
+      {:else}
+        <BarChart 
+          data={barchart_fatal}
+          chartAreaHeight=120
+          x=period_range
+          y=period_sum
+          xLabelWrap={true}
+          swapXY=true
+          yFmt=pct0
+          series=MODE
+          seriesColors={{
+            "Driver":        '#2563EB',
+            "Passenger":     '#38BDF8',
+            "Pedestrian":    '#F97316',
+            "Bicyclist":     '#10B981',
+            "Scooterist*":   '#A855F7',
+            "Motorcyclist*": '#EC4899',
+            "Other":         '#FACC15',
+            "Unknown":       '#94A3B8'
+          }}
+          labels={true}
+          type=stacked100
+          downloadableData=false
+          downloadableImage=false
+          leftPadding={10}
+          echartsOptions={{
+            legend: { type: 'plain', top: 0 },
+            grid: { top: 65 }
+          }}
+        />
+      {/if}
 
-    <BarChart 
-      data={barchart_fatal}
-      chartAreaHeight=80
-      x=period_range
-      y=period_sum
-      xLabelWrap={true}
-      swapXY=true
-      yFmt=pct0
-      series=MODE
-      seriesColors={{"Pedestrian": '#00FFD4',"Other": '#06DFC8',"Bicyclist": '#0BBFBC',"Scooterist*": '#119FB0',"Motorcyclist*": '#167FA3',"Passenger": '#1C5F97',"Driver": '#271F7F',"Unknown": '#213F8B'}}
-      labels={true}
-      type=stacked100
-      downloadableData=false
-      downloadableImage=false
-      leftPadding={10} 
-    />
   </Group>
 
   <!-- Column 2: Major Injuries (YTD vs prior YTD) -->
@@ -1089,22 +1144,63 @@ echartsOptions={{animation: false}}
       <b>Percentage Breakdown:</b>
     </div>
 
-    <BarChart 
-      data={barchart_major}
-      chartAreaHeight=80
-      x=period_range
-      y=period_sum
-      xLabelWrap={true}
-      swapXY=true
-      yFmt=pct0
-      series=MODE
-      seriesColors={{"Pedestrian": '#00FFD4',"Other": '#06DFC8',"Bicyclist": '#0BBFBC',"Scooterist*": '#119FB0',"Motorcyclist*": '#167FA3',"Passenger": '#1C5F97',"Driver": '#271F7F',"Unknown": '#213F8B'}}
-      labels={true}
-      type=stacked100
-      downloadableData=false
-      downloadableImage=false
-      leftPadding={10} 
-    />
+    {#if isDesktop}
+      <BarChart
+        data={barchart_major}
+        chartAreaHeight=80
+        x=period_range
+        y=period_sum
+        xLabelWrap={true}
+        swapXY=true
+        yFmt=pct0
+        series=MODE
+        seriesColors={{
+          "Driver":        '#2563EB',
+          "Passenger":     '#38BDF8',
+          "Pedestrian":    '#F97316',
+          "Bicyclist":     '#10B981',
+          "Scooterist*":   '#A855F7',
+          "Motorcyclist*": '#EC4899',
+          "Other":         '#FACC15',
+          "Unknown":       '#94A3B8'
+        }}
+        labels={true}
+        type=stacked100
+        downloadableData=false
+        downloadableImage=false
+        leftPadding={10}
+      />
+      {:else}
+        <BarChart
+          data={barchart_major}
+          chartAreaHeight=120
+          x=period_range
+          y=period_sum
+          xLabelWrap={true}
+          swapXY=true
+          yFmt=pct0
+          series=MODE
+          seriesColors={{
+            "Driver":        '#2563EB',
+            "Passenger":     '#38BDF8',
+            "Pedestrian":    '#F97316',
+            "Bicyclist":     '#10B981',
+            "Scooterist*":   '#A855F7',
+            "Motorcyclist*": '#EC4899',
+            "Other":         '#FACC15',
+            "Unknown":       '#94A3B8'
+          }}
+          labels={true}
+          type=stacked100
+          downloadableData=false
+          downloadableImage=false
+          leftPadding={10}
+          echartsOptions={{
+            legend: { type: 'plain', top: 0 },
+            grid: { top: 65 }
+          }}
+        />
+      {/if}
   </Group>
 
 </Grid>
