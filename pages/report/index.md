@@ -1038,12 +1038,11 @@ echartsOptions={{animation: false}}
         seriesColors={{
           "Driver":        '#2563EB',
           "Passenger":     '#38BDF8',
-          "Pedestrian":    '#F97316',
+          "Pedestrian":    '#EC4899',
           "Bicyclist":     '#10B981',
-          "Scooterist*":   '#A855F7',
-          "Motorcyclist*": '#EC4899',
-          "Other":         '#FACC15',
-          "Unknown":       '#94A3B8'
+          "Scooterist*":   '#34F5C5',
+          "Motorcyclist*": '#D946EF',
+          "Other":         '#94A3B8'
         }}
         labels={true}
         type=stacked100
@@ -1064,12 +1063,11 @@ echartsOptions={{animation: false}}
           seriesColors={{
             "Driver":        '#2563EB',
             "Passenger":     '#38BDF8',
-            "Pedestrian":    '#F97316',
+            "Pedestrian":    '#EC4899',
             "Bicyclist":     '#10B981',
-            "Scooterist*":   '#A855F7',
-            "Motorcyclist*": '#EC4899',
-            "Other":         '#FACC15',
-            "Unknown":       '#94A3B8'
+            "Scooterist*":   '#34F5C5',
+            "Motorcyclist*": '#D946EF',
+            "Other":         '#94A3B8'
           }}
           labels={true}
           type=stacked100
@@ -1157,12 +1155,11 @@ echartsOptions={{animation: false}}
         seriesColors={{
           "Driver":        '#2563EB',
           "Passenger":     '#38BDF8',
-          "Pedestrian":    '#F97316',
+          "Pedestrian":    '#EC4899',
           "Bicyclist":     '#10B981',
-          "Scooterist*":   '#A855F7',
-          "Motorcyclist*": '#EC4899',
-          "Other":         '#FACC15',
-          "Unknown":       '#94A3B8'
+          "Scooterist*":   '#34F5C5',
+          "Motorcyclist*": '#D946EF',
+          "Other":         '#94A3B8'
         }}
         labels={true}
         type=stacked100
@@ -1183,12 +1180,11 @@ echartsOptions={{animation: false}}
           seriesColors={{
             "Driver":        '#2563EB',
             "Passenger":     '#38BDF8',
-            "Pedestrian":    '#F97316',
+            "Pedestrian":    '#EC4899',
             "Bicyclist":     '#10B981',
-            "Scooterist*":   '#A855F7',
-            "Motorcyclist*": '#EC4899',
-            "Other":         '#FACC15',
-            "Unknown":       '#94A3B8'
+            "Scooterist*":   '#34F5C5',
+            "Motorcyclist*": '#D946EF',
+            "Other":         '#94A3B8'
           }}
           labels={true}
           type=stacked100

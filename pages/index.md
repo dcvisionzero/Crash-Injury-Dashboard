@@ -2037,7 +2037,15 @@ defaultValue={
           swapXY=true
           yFmt=pct0
           series=MODE
-          seriesColors={{"Pedestrian": '#00FFD4',"Other": '#06DFC8',"Bicyclist": '#0BBFBC',"Scooterist*": '#119FB0',"Motorcyclist*": '#167FA3',"Passenger": '#1C5F97',"Driver": '#271F7F',"Unknown": '#213F8B'}}
+          seriesColors={{
+            "Driver":        '#2563EB',
+            "Passenger":     '#38BDF8',
+            "Pedestrian":    '#EC4899',
+            "Bicyclist":     '#10B981',
+            "Scooterist*":   '#34F5C5',
+            "Motorcyclist*": '#D946EF',
+            "Other":         '#94A3B8'
+          }}
           labels={true}
           type=stacked100
           downloadableData=false
@@ -2115,7 +2123,15 @@ defaultValue={
           swapXY=true
           yFmt=pct0
           series=MODE
-          seriesColors={{"Pedestrian": '#00FFD4',"Other": '#06DFC8',"Bicyclist": '#0BBFBC',"Scooterist*": '#119FB0',"Motorcyclist*": '#167FA3',"Passenger": '#1C5F97',"Driver": '#271F7F',"Unknown": '#213F8B'}}
+          seriesColors={{
+            "Driver":        '#2563EB',
+            "Passenger":     '#38BDF8',
+            "Pedestrian":    '#EC4899',
+            "Bicyclist":     '#10B981',
+            "Scooterist*":   '#34F5C5',
+            "Motorcyclist*": '#D946EF',
+            "Other":         '#94A3B8'
+          }}
           labels={true}
           type=stacked100
           downloadableData=false
@@ -2207,37 +2223,37 @@ defaultValue={
       <tr>
         <td><img src="https://raw.githubusercontent.com/rafaelmorenoco/Crash-Injury-Dashboard-Backend/main/Icons/driver.png" alt="Driver Icon" width="32"></td>
         <td>Driver</td>
-        <td>The individual operating the motor vehicle.</td>
+        <td>A person operating a motor vehicle.</td>
       </tr>
       <tr>
         <td><img src="https://raw.githubusercontent.com/rafaelmorenoco/Crash-Injury-Dashboard-Backend/main/Icons/passenger.png" alt="Passenger Icon" width="32"></td>
         <td>Passenger</td>
-        <td>The individual riding along in the motor vehicle.</td>
+        <td>A person riding along in a motor vehicle.</td>
       </tr>
       <tr>
         <td><img src="https://raw.githubusercontent.com/rafaelmorenoco/Crash-Injury-Dashboard-Backend/main/Icons/pedestrian.png" alt="Pedestrian Icon" width="32"></td>
         <td>Pedestrian</td>
-        <td>An individual moving on foot, or using a wheelchair or other personal mobility device.</td>
+        <td>A person moving on foot or using a wheelchair..</td>
       </tr>
       <tr>
         <td><img src="https://raw.githubusercontent.com/rafaelmorenoco/Crash-Injury-Dashboard-Backend/main/Icons/bicyclist.png" alt="Bicyclist Icon" width="32"></td>
         <td>Bicyclist</td>
-        <td>A person riding a bicycle or motorized bicycle.</td>
+        <td>A person riding a bicycle or motorized bicycle (e-bike).</td>
       </tr>
       <tr>
         <td><img src="https://raw.githubusercontent.com/rafaelmorenoco/Crash-Injury-Dashboard-Backend/main/Icons/motorcyclist.png" alt="Motorcyclist Icon" width="32"></td>
         <td>Motorcyclist*</td>
-        <td>User of a motor-driven cycle (e.g., motorcycle or moped). *Fatal only.</td>
+        <td>A person riding a motorcycle or motor‑driven cycle (moped). *Fatal only.</td>
       </tr>
       <tr>
         <td><img src="https://raw.githubusercontent.com/rafaelmorenoco/Crash-Injury-Dashboard-Backend/main/Icons/scooterist.png" alt="Scooterist Icon" width="32"></td>
         <td>Scooterist*</td>
-        <td>User of a standing scooter or personal mobility device. *Fatal only.</td>
+        <td>A person using a standing scooter or personal mobility device. *Fatal only.</td>
       </tr>
       <tr>
         <td><img src="https://raw.githubusercontent.com/rafaelmorenoco/Crash-Injury-Dashboard-Backend/main/Icons/unknown.png" alt="Other Icon" width="32"></td>
         <td>Other**</td>
-        <td>Includes motor-driven cycles (commonly referred to as mopeds and motorcycles), as well as personal mobility devices such as standing scooters, and others, including unknown classifications. **Major and minor injury only.</td>
+        <td>Includes users of motrocycles, motor‑driven cycles (mopeds), personal mobility devices (such as standing scooters), and other or unknown classifications. **Major and minor injury only.</td>
       </tr>
     </tbody>
   </table>
@@ -2262,7 +2278,7 @@ Injury Crashes are defined based on information collected at the scene of the cr
 
 While the injury crashes shown on this map include any type of injury, summaries of injuries submitted for federal reports only include those that fall under the Model Minimum Uniform Crash Criteria https://www.nhtsa.gov/mmucc-1, which do not include "discomfort" and "pain". Note: Data definitions of injury categories may differ due to source (e.g., federal rules) and may change over time, which may cause numbers to vary among data sources. 
 
-All data comes from MPD. 
+Injury data (minor and major injuries) comes from MPD only. This means that crashes occurring outside MPD’s jurisdiction are assigned to the other law‑enforcement agencies that operate in DC, such as the United States Park Police (USPP), United States Capitol Police (USCP), United States Secret Service (USSS), and the Metro Transit Police Department (MTPD), among others. As a result, those crashes do not appear in MPD’s database. Fatality data is the exception because it includes cases handled by other law‑enforcement agencies in the District. For example, in a crash in Rock Creek Park, USPP would be the responding agency rather than MPD.
 
     - Crashes in DC (Open Data): https://opendata.dc.gov/datasets/crashes-in-dc
     - Crash Details (Open Data): https://opendata.dc.gov/datasets/crash-details-table

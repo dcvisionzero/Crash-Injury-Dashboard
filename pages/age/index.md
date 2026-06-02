@@ -134,12 +134,12 @@ ORDER BY
     bucket_order,
     CASE 
         WHEN MODE = 'Pedestrian'    THEN 1
-        WHEN MODE = 'Other'         THEN 2
-        WHEN MODE = 'Bicyclist'     THEN 3
-        WHEN MODE = 'Scooterist*'   THEN 4
-        WHEN MODE = 'Motorcyclist*' THEN 5
-        WHEN MODE = 'Passenger'     THEN 6
-        WHEN MODE = 'Driver'        THEN 7
+        WHEN MODE = 'Bicyclist'     THEN 2
+        WHEN MODE = 'Passenger'     THEN 3
+        WHEN MODE = 'Driver'        THEN 4
+        WHEN MODE = 'Other'         THEN 5
+        WHEN MODE = 'Scooterist*'   THEN 6         
+        WHEN MODE = 'Motorcyclist*' THEN 7        
     END;
 ```
 
@@ -314,186 +314,6 @@ FROM (
 ORDER BY bucket_order, YTD;
 ```
 
-```sql age_comparison
-WITH 
-  -- 1. Compute the “true” end_date (+1 day) and start_date
-  report_date_range AS (
-    SELECT
-      CASE 
-        WHEN '${inputs.date_range.end}'::DATE 
-             >= (SELECT MAX(LAST_RECORD)::DATE FROM crashes.crashes)
-        THEN (SELECT MAX(LAST_RECORD)::DATE FROM crashes.crashes) + INTERVAL '1 day'
-        ELSE '${inputs.date_range.end}'::DATE + INTERVAL '1 day'
-      END AS end_date,
-      '${inputs.date_range.start}'::DATE AS start_date
-  ),
-  -- 2. Build a single label: YTD only if start=Jan 1 of the year AND end hits max data;
-  --    otherwise always “MM/DD/YY–MM/DD/YY”
-  date_info AS (
-      SELECT
-          start_date,
-          end_date,
-          CASE
-              -- Full calendar year → "YYYY"
-              WHEN start_date = DATE_TRUNC('year', start_date)
-              AND end_date   = DATE_TRUNC('year', start_date) + INTERVAL '1 year'
-              THEN EXTRACT(YEAR FROM start_date)::VARCHAR
-
-              -- Current YTD → "YYYY YTD"
-              WHEN start_date = DATE_TRUNC('year', CURRENT_DATE)
-              AND '${inputs.date_range.end}'::DATE = end_date - INTERVAL '1 day'
-              THEN EXTRACT(YEAR FROM (end_date - INTERVAL '1 day'))::VARCHAR || ' YTD'
-
-              -- Default formatted range
-              ELSE
-                  strftime(start_date, '%m/%d/%y')
-                  || '-'
-                  || strftime(end_date - INTERVAL '1 day', '%m/%d/%y')
-          END AS current_period_range,
-          (end_date - start_date) AS date_range_days
-      FROM report_date_range
-  ),
-  -- 3. Figure out your “offset” to compare prior spans
-  offset_period AS (
-    SELECT
-      start_date,
-      end_date,
-      CASE 
-        WHEN end_date > start_date + INTERVAL '5 year' THEN (SELECT 1/0)  -- guard: >5 yrs
-        WHEN end_date > start_date + INTERVAL '4 year' THEN INTERVAL '5 year'
-        WHEN end_date > start_date + INTERVAL '3 year' THEN INTERVAL '4 year'
-        WHEN end_date > start_date + INTERVAL '2 year' THEN INTERVAL '3 year'
-        WHEN end_date > start_date + INTERVAL '1 year' THEN INTERVAL '2 year'
-        ELSE INTERVAL '1 year'
-      END AS interval_offset
-    FROM date_info
-  ),
-  -- 4. Deduce the prior span’s start/end
-  prior_date_info AS (
-    SELECT
-      (SELECT start_date      FROM date_info) - (SELECT interval_offset FROM offset_period) AS prior_start_date,
-      (SELECT end_date        FROM date_info) - (SELECT interval_offset FROM offset_period) AS prior_end_date
-  ),
-  -- 5. Label that prior span with the same “YTD only-if” logic
-  prior_date_label AS (
-      SELECT
-          CASE
-              -- Full calendar year → "YYYY"
-              WHEN prior_start_date = DATE_TRUNC('year', prior_start_date)
-              AND prior_end_date   = DATE_TRUNC('year', prior_start_date) + INTERVAL '1 year'
-              THEN EXTRACT(YEAR FROM prior_start_date)::VARCHAR
-              -- Prior YTD → "YYYY YTD"
-              WHEN (SELECT start_date FROM date_info) = DATE_TRUNC('year', CURRENT_DATE)
-              AND '${inputs.date_range.end}'::DATE = (SELECT end_date FROM date_info) - INTERVAL '1 day'
-              THEN EXTRACT(YEAR FROM prior_end_date)::VARCHAR || ' YTD'
-              -- Default formatted range
-              ELSE
-                  strftime(prior_start_date, '%m/%d/%y')
-                  || '-'
-                  || strftime(prior_end_date - INTERVAL '1 day', '%m/%d/%y')
-          END AS prior_period_range
-      FROM prior_date_info
-  ),
-  -- 6. Define your age‐buckets (0–10, 11–20, …, >80, Null)
-  buckets(bucket_order, bucket_label, lower_bound, upper_bound) AS (
-    VALUES
-      (0,    '0-10',   0,   10),
-      (11,   '11-20',  11,  20),
-      (21,   '21-30',  21,  30),
-      (31,   '31-40',  31,  40),
-      (41,   '41-50',  41,  50),
-      (51,   '51-60',  51,  60),
-      (61,   '61-70',  61,  70),
-      (71,   '71-80',  71,  80),
-      (81,   '> 80',   81,  110)
-  ),
-  null_bucket AS (
-    SELECT 9999 AS bucket_order, 'Null' AS bucket_label, 120 AS lower_bound, 120 AS upper_bound
-  ),
-  all_buckets AS (
-    SELECT * FROM buckets
-    UNION ALL
-    SELECT * FROM null_bucket
-  ),
-  -- 7. Aggregate current‐period injuries by bucket
-  current_age AS (
-    SELECT 
-      ab.bucket_order,
-      ab.bucket_label,
-      COALESCE(SUM(c.COUNT), 0) AS Injuries
-    FROM all_buckets ab
-    LEFT JOIN crashes.crashes c 
-      ON (
-           (ab.bucket_label = 'Null' AND CAST(c.AGE AS INTEGER) = ab.lower_bound)
-           OR
-           (ab.bucket_label <> 'Null' AND CAST(c.AGE AS INTEGER) BETWEEN ab.lower_bound AND ab.upper_bound)
-         )
-         AND c.MODE       IN ${inputs.multi_mode_dd.value}
-         AND c.SEVERITY   IN ${inputs.multi_severity.value}
-         AND c.REPORTDATE BETWEEN (SELECT start_date FROM date_info)
-                              AND (SELECT end_date   FROM date_info)
-         AND c.AGE BETWEEN ${inputs.min_age.value}
-                     AND (
-                       CASE 
-                         WHEN ${inputs.min_age.value} <> 0 
-                          AND ${inputs.max_age.value} = 120
-                         THEN 119
-                         ELSE ${inputs.max_age.value}
-                       END
-                     )
-    GROUP BY ab.bucket_order, ab.bucket_label
-  ),
-  -- 8. Aggregate prior‐period injuries by bucket
-  prior_age AS (
-    SELECT 
-      ab.bucket_order,
-      ab.bucket_label,
-      COALESCE(SUM(c.COUNT), 0) AS Injuries
-    FROM all_buckets ab
-    LEFT JOIN crashes.crashes c 
-      ON (
-           (ab.bucket_label = 'Null' AND CAST(c.AGE AS INTEGER) = ab.lower_bound)
-           OR
-           (ab.bucket_label <> 'Null' AND CAST(c.AGE AS INTEGER) BETWEEN ab.lower_bound AND ab.upper_bound)
-         )
-         AND c.MODE       IN ${inputs.multi_mode_dd.value}
-         AND c.SEVERITY   IN ${inputs.multi_severity.value}
-         AND c.REPORTDATE BETWEEN (SELECT start_date     FROM date_info) - (SELECT interval_offset FROM offset_period)
-                              AND (SELECT end_date       FROM date_info) - (SELECT interval_offset FROM offset_period)
-         AND c.AGE BETWEEN ${inputs.min_age.value}
-                     AND (
-                       CASE 
-                         WHEN ${inputs.min_age.value} <> 0 
-                          AND ${inputs.max_age.value} = 120
-                         THEN 119
-                         ELSE ${inputs.max_age.value}
-                       END
-                     )
-    GROUP BY ab.bucket_order, ab.bucket_label
-  )
--- 9. Union current/prior, attach the correct period label, and sort
-SELECT 
-  bucket_label,
-  Injuries,
-  Period_range
-FROM (
-  SELECT 
-    ca.bucket_order,
-    ca.bucket_label,
-    ca.Injuries,
-    (SELECT current_period_range FROM date_info) AS Period_range
-  FROM current_age ca
-  UNION ALL
-  SELECT 
-    pa.bucket_order,
-    pa.bucket_label,
-    pa.Injuries,
-    (SELECT prior_period_range FROM prior_date_label) AS Period_range
-  FROM prior_age pa
-) AS combined
-ORDER BY bucket_order, Period_range;
-```
-
 ```sql mode_severity_selection
 WITH
   -- 1. Get the total number of unique modes in the entire table
@@ -658,7 +478,7 @@ defaultValue={
 <Grid cols=2>
     <Group>
         <div style="font-size: 14px;">
-            <b>Age Breakdown of {`${mode_severity_selection[0].SEVERITY_SELECTION}`} for {mode_severity_selection[0].MODE_SELECTION} ({age_comparison[1].Period_range})</b>
+            <b>Age Breakdown of {`${mode_severity_selection[0].SEVERITY_SELECTION}`} for {mode_severity_selection[0].MODE_SELECTION} ({age_yoy[1].YTD})</b>
         <BarChart 
             data={age_mode}
             chartAreaHeight=320
@@ -667,7 +487,15 @@ defaultValue={
             labels={true} 
             yAxisTitle="Count" 
             series=MODE
-            seriesColors={{"Pedestrian": '#00FFD4',"Other": '#06DFC8',"Bicyclist": '#0BBFBC',"Scooterist*": '#119FB0',"Motorcyclist*": '#167FA3',"Passenger": '#1C5F97',"Driver": '#271F7F'}}
+            seriesColors={{
+              "Driver":        '#2563EB',
+              "Passenger":     '#38BDF8',
+              "Pedestrian":    '#EC4899',
+              "Bicyclist":     '#10B981',
+              "Scooterist*":   '#34F5C5',
+              "Motorcyclist*": '#D946EF',
+              "Other":         '#94A3B8'
+            }}
             xAxisLabels={true} 
             xTickMarks={true} 
             leftPadding={10} 
@@ -702,25 +530,57 @@ defaultValue={
     </Group>
 </Grid>
 
-<div style="font-size: 14px;">
-    <b>Percentage Breakdown of {mode_severity_selection[0].SEVERITY_SELECTION} for {mode_severity_selection[0].MODE_SELECTION} by Age Group</b>
-</div>
-<BarChart 
-    data={age_comparison}
-    chartAreaHeight=100
-    x=Period_range
-    y=Injuries
-    swapXY=true
-    yFmt=pct0
-    series=bucket_label
-    labels={true}
-    type=stacked100
-/>
-
 <Note>
     The latest crash record in the dataset is from <Value data={last_record} column="latest_record"/> and the data was last updated on <Value data={last_record} column="latest_update"/> hrs.
 </Note>
 
 <Details title="About Road Users">
-<b>Road User</b> type <b>'Other'</b> includes motor-driven cycles (commonly referred to as mopeds and motorcycles), as well as personal mobility devices, such as standing scooters. The term <b>'Scooterist'</b> refers to the user of a standing scooter, while <b>'Motorcyclist'</b> applies to users of motor-driven cycles.
+
+<table border="1" cellspacing="0" cellpadding="8">
+    <thead>
+      <tr>
+        <th>Icon</th>
+        <th>Road User</th>
+        <th>Description</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><img src="https://raw.githubusercontent.com/rafaelmorenoco/Crash-Injury-Dashboard-Backend/main/Icons/driver.png" alt="Driver Icon" width="32"></td>
+        <td>Driver</td>
+        <td>A person operating a motor vehicle.</td>
+      </tr>
+      <tr>
+        <td><img src="https://raw.githubusercontent.com/rafaelmorenoco/Crash-Injury-Dashboard-Backend/main/Icons/passenger.png" alt="Passenger Icon" width="32"></td>
+        <td>Passenger</td>
+        <td>A person riding along in a motor vehicle.</td>
+      </tr>
+      <tr>
+        <td><img src="https://raw.githubusercontent.com/rafaelmorenoco/Crash-Injury-Dashboard-Backend/main/Icons/pedestrian.png" alt="Pedestrian Icon" width="32"></td>
+        <td>Pedestrian</td>
+        <td>A person moving on foot or using a wheelchair..</td>
+      </tr>
+      <tr>
+        <td><img src="https://raw.githubusercontent.com/rafaelmorenoco/Crash-Injury-Dashboard-Backend/main/Icons/bicyclist.png" alt="Bicyclist Icon" width="32"></td>
+        <td>Bicyclist</td>
+        <td>A person riding a bicycle or motorized bicycle (e-bike).</td>
+      </tr>
+      <tr>
+        <td><img src="https://raw.githubusercontent.com/rafaelmorenoco/Crash-Injury-Dashboard-Backend/main/Icons/motorcyclist.png" alt="Motorcyclist Icon" width="32"></td>
+        <td>Motorcyclist*</td>
+        <td>A person riding a motorcycle or motor‑driven cycle (moped). *Fatal only.</td>
+      </tr>
+      <tr>
+        <td><img src="https://raw.githubusercontent.com/rafaelmorenoco/Crash-Injury-Dashboard-Backend/main/Icons/scooterist.png" alt="Scooterist Icon" width="32"></td>
+        <td>Scooterist*</td>
+        <td>A person using a standing scooter or personal mobility device. *Fatal only.</td>
+      </tr>
+      <tr>
+        <td><img src="https://raw.githubusercontent.com/rafaelmorenoco/Crash-Injury-Dashboard-Backend/main/Icons/unknown.png" alt="Other Icon" width="32"></td>
+        <td>Other**</td>
+        <td>Includes users of motrocycles, motor‑driven cycles (mopeds), personal mobility devices (such as standing scooters), and other or unknown classifications. **Major and minor injury only.</td>
+      </tr>
+    </tbody>
+  </table>
+
 </Details>

@@ -134,6 +134,8 @@ Select any year to view the key efforts and initiatives the District has underta
 
         ** ‣ Bus Priority Expansion**: Since 2021, the District’s bus lane network has more than doubled, from 6.2 miles to 13.3 miles (built or under construction) improving safety, efficiency, and reliability for all road users.
 
+        ** ‣ MBT Takoma Expansion**: The new 1.7‑mile Fort Totten to Takoma segment of the Metropolitan Branch Trail is compleated, creating a continuous, protected connection through Northeast DC and closing one of the last major gaps in the corridor. The project adds lighting, stormwater features, and security upgrades, improving safety and access for people walking and biking.
+
       </AccordionItem>
     </Accordion>
   </Group>

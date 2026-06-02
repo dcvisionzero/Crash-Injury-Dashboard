@@ -459,7 +459,7 @@ FROM
             Each point on the map represents an fatality. Fatality incidents can overlap in the same spot.
         </Note>
         <BaseMap
-            height=420
+            height=490
             startingZoom=11
         >
             <Points data={inc_map} lat=LATITUDE long=LONGITUDE pointName=MODE value=SEVERITY colorPalette={['#ff5a53']} ignoreZoom=true
@@ -508,7 +508,7 @@ FROM
         </DataTable>
         <BarChart 
           data={Impairment}
-          chartAreaHeight=45
+          chartAreaHeight=35
           x=Impairment
           y=Count
           xLabelWrap={true}
@@ -521,11 +521,14 @@ FROM
           downloadableImage=false
           leftPadding={10} 
           seriesOrder={['Yes','No','Unknown']}
-          seriesColors={{'Yes': '#f95738','No': '#0d3b66','Unknown': '#faf0ca'}}
+          seriesColors={{'Yes': '#271F7F','No': '#00FFD4','Unknown': '#A9A9A9'}}
+          echartsOptions={{
+            grid: {bottom: 0 }
+          }}
         />
         <BarChart 
           data={Speeding}
-          chartAreaHeight=30
+          chartAreaHeight=11
           x=Speeding
           y=Count
           xLabelWrap={true}
@@ -540,11 +543,14 @@ FROM
           legend=false
           yAxisLabels=false
           seriesOrder={['Yes','No','Unknown']}
-          seriesColors={{'Yes': '#f95738','No': '#0d3b66','Unknown': '#faf0ca'}}
+          seriesColors={{'Yes': '#271F7F','No': '#00FFD4','Unknown': '#A9A9A9'}}
+          echartsOptions={{
+            grid: { top: 0, bottom: 0 }
+          }}
         />
         <BarChart 
           data={HitAndRun}
-          chartAreaHeight=30
+          chartAreaHeight=11
           x=HitAndRunLabel
           y=Count
           xLabelWrap={true}
@@ -559,7 +565,10 @@ FROM
           legend=false
           yAxisLabels=false
           seriesOrder={['Yes','No','Unknown']}
-          seriesColors={{'Yes': '#f95738','No': '#0d3b66','Unknown': '#faf0ca'}}
+          seriesColors={{'Yes': '#271F7F','No': '#00FFD4','Unknown': '#A9A9A9'}}
+          echartsOptions={{
+            grid: { top: 0, bottom: 0 }
+          }}
         />
     </Group>
 </Grid>

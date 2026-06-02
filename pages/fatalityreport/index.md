@@ -769,7 +769,7 @@ FROM
         </div>
         <BarChart 
           data={Impairment}
-          chartAreaHeight=45
+          chartAreaHeight=35
           x=Impairment
           y=Count
           xLabelWrap={true}
@@ -782,11 +782,14 @@ FROM
           downloadableImage=false
           leftPadding={10} 
           seriesOrder={['Yes','No','Unknown']}
-          seriesColors={{'Yes': '#f95738','No': '#0d3b66','Unknown': '#faf0ca'}}
+          seriesColors={{'Yes': '#271F7F','No': '#00FFD4','Unknown': '#A9A9A9'}}
+          echartsOptions={{
+            grid: {bottom: 0 }
+          }}
         />
         <BarChart 
           data={Speeding}
-          chartAreaHeight=30
+          chartAreaHeight=11
           x=Speeding
           y=Count
           xLabelWrap={true}
@@ -801,11 +804,14 @@ FROM
           legend=false
           yAxisLabels=false
           seriesOrder={['Yes','No','Unknown']}
-          seriesColors={{'Yes': '#f95738','No': '#0d3b66','Unknown': '#faf0ca'}}
+          seriesColors={{'Yes': '#271F7F','No': '#00FFD4','Unknown': '#A9A9A9'}}
+          echartsOptions={{
+            grid: { top: 0, bottom: 0 }
+          }}
         />
         <BarChart 
           data={HitAndRun}
-          chartAreaHeight=30
+          chartAreaHeight=19
           x=HitAndRunLabel
           y=Count
           xLabelWrap={true}
@@ -820,7 +826,10 @@ FROM
           legend=false
           yAxisLabels=false
           seriesOrder={['Yes','No','Unknown']}
-          seriesColors={{'Yes': '#f95738','No': '#0d3b66','Unknown': '#faf0ca'}}
+          seriesColors={{'Yes': '#271F7F','No': '#00FFD4','Unknown': '#A9A9A9'}}
+          echartsOptions={{
+            grid: { top: 0}
+          }}
         />
         <div style="font-size: 14px;">
             <b>Year Over Year Comparison of Fatalities for {`${mode_selection[0].MODE_SELECTION}`}</b>
@@ -828,7 +837,7 @@ FROM
         <BarChart 
           data={ytd_barchart}
           subtitle=" "
-          chartAreaHeight=150 
+          chartAreaHeight=165 
           x="Year" 
           y="Count" 
           colorPalette={['#ff5a53']}
