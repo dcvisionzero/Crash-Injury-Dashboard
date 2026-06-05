@@ -6,6 +6,12 @@ queries:
 sidebar_position: 6
 ---
 
+```sql all
+   select *
+   from crashes.crashes
+   limit 5 
+```
+
 ```sql unique_mode
 select 
     MODE
@@ -52,16 +58,102 @@ date_range AS (
 dates AS (
     SELECT day 
     FROM date_range,
-        generate_series(start_date, end_date, INTERVAL '1 day') AS t(day)
+         generate_series(start_date, end_date, INTERVAL '1 day') AS t(day)
+),
+-- Crash type lookup table
+crash_map AS (
+    SELECT *
+    FROM (VALUES
+        ('single motor vehicle', 'MV-Obj'),
+        ('motor vehicle - motor vehicle', 'MV-MV'),
+        ('multiple motor vehicles', '>2 MV'),
+        ('single bicycle', 'Bic-Obj'),
+        ('bicycle - bicycle', 'Bic-Bic'),
+        ('multiple bicycles', 'Bic'),
+        ('pedestrian only', 'Ped-Obj'),
+        ('other', 'Oth-Obj'),
+        ('single motorcycle*', 'MC-Obj'),
+        ('single standing scooter*', 'SS-Obj'),
+        ('motor vehicle - pedestrian', 'MV-Ped'),
+        ('motor vehicle - bicycle', 'MV-Bic'),
+        ('motor vehicle - other', 'MV-Oth'),
+        ('motor vehicle - motorcycle*', 'MV-MC'),
+        ('motor vehicle - standing scooter*', 'MV-SS'),
+        ('other - bicycle', 'Oth-Bic'),
+        ('other - pedestrian', 'Oth-Ped'),
+        ('motorcycle* - pedestrian', 'MC-Ped'),
+        ('motorcycle* - bicycle', 'MC-Bic'),
+        ('standing scooter* - pedestrian', 'SS-Ped'),
+        ('standing scooter* - bicycle', 'SS-Bic'),
+        ('bicycle - pedestrian', 'Bic-Ped'),
+        ('multi-party', 'MP'),
+        ('unclassified', 'Unc')
+    ) AS t(TYPE_OF_CRASH, TYPE_ABBR)
 ),
 filtered_crashes AS (
     SELECT 
         c.*,
-        date_trunc('day', c.REPORTDATE) AS crash_day
+        date_trunc('day', c.REPORTDATE) AS crash_day,
+        -- Address abbreviation (moved here for cleanliness)
+        REGEXP_REPLACE(
+            REGEXP_REPLACE(
+                REGEXP_REPLACE(
+                    REGEXP_REPLACE(
+                        REGEXP_REPLACE(
+                            REGEXP_REPLACE(
+                                REGEXP_REPLACE(
+                                    REGEXP_REPLACE(
+                                        REGEXP_REPLACE(
+                                            REGEXP_REPLACE(
+                                                REGEXP_REPLACE(
+                                                    REGEXP_REPLACE(
+                                                        c.ADDRESS,
+                                                        '\\bSTREET\\b', 'ST'
+                                                    ),
+                                                    '\\bAVENUE\\b', 'AVE'
+                                                ),
+                                                '\\bROAD\\b', 'RD'
+                                            ),
+                                            '\\bPLACE\\b', 'PL'
+                                        ),
+                                        '\\bCOURT\\b', 'CT'
+                                    ),
+                                    '\\bCIRCLE\\b', 'CIR'
+                                ),
+                                '\\bBOULEVARD\\b', 'BLVD'
+                            ),
+                            '\\bDRIVE\\b', 'DR'
+                        ),
+                        '\\bTERRACE\\b', 'TER'
+                    ),
+                    '\\bPARKWAY\\b', 'PKWY'
+                ),
+                '\\bEXPRESSWAY\\b', 'EXPY'
+            ),
+            '\\bLANE\\b', 'LN'
+        ) AS ADDRESS_ABBR,
+        -- Crash type abbreviation from lookup
+        m.TYPE_ABBR,
+        -- AGE cleaned once
+        CASE 
+            WHEN CAST(c.AGE AS INTEGER) = 120 THEN '-'
+            ELSE CAST(CAST(c.AGE AS INTEGER) AS VARCHAR)
+        END AS AGE_CLEAN,
+        -- AGE + TYPE_ABBR combined once
+        (
+            CASE 
+                WHEN CAST(c.AGE AS INTEGER) = 120 THEN '-'
+                ELSE CAST(CAST(c.AGE AS INTEGER) AS VARCHAR)
+            END
+            || ' ' ||
+            m.TYPE_ABBR
+        ) AS AGE_TYPE
     FROM crashes.crashes c
     JOIN date_range d
         ON c.REPORTDATE >= d.start_date 
-        AND c.REPORTDATE < d.end_date_exclusive
+       AND c.REPORTDATE < d.end_date_exclusive
+    LEFT JOIN crash_map m
+        ON c.TYPE_OF_CRASH = m.TYPE_OF_CRASH
     WHERE c.MODE IN ${inputs.multi_mode_dd.value}
       AND c.SEVERITY IN ${inputs.multi_severity.value}
       AND c.AGE BETWEEN ${inputs.min_age.value}
@@ -81,49 +173,12 @@ SELECT
     COALESCE(fc.LATITUDE, 0) AS LATITUDE,
     COALESCE(fc.LONGITUDE, 0) AS LONGITUDE,
     SUBSTRING(fc.MODE, 1, 3) || '-' || SUBSTRING(fc.SEVERITY, 1) AS MODESEV,
-    -- Address abbreviation
-    REGEXP_REPLACE(
-        REGEXP_REPLACE(
-            REGEXP_REPLACE(
-                REGEXP_REPLACE(
-                    REGEXP_REPLACE(
-                        REGEXP_REPLACE(
-                            REGEXP_REPLACE(
-                                REGEXP_REPLACE(
-                                    REGEXP_REPLACE(
-                                        REGEXP_REPLACE(
-                                            REGEXP_REPLACE(
-                                                REGEXP_REPLACE(
-                                                    fc.ADDRESS,
-                                                    '\\bSTREET\\b', 'ST'
-                                                ),
-                                                '\\bAVENUE\\b', 'AVE'
-                                            ),
-                                            '\\bROAD\\b', 'RD'
-                                        ),
-                                        '\\bPLACE\\b', 'PL'
-                                    ),
-                                    '\\bCOURT\\b', 'CT'
-                                ),
-                                '\\bCIRCLE\\b', 'CIR'
-                            ),
-                            '\\bBOULEVARD\\b', 'BLVD'
-                        ),
-                        '\\bDRIVE\\b', 'DR'
-                    ),
-                    '\\bTERRACE\\b', 'TER'
-                ),
-                '\\bPARKWAY\\b', 'PKWY'
-            ),
-            '\\bEXPRESSWAY\\b', 'EXPY'
-        ),
-        '\\bLANE\\b', 'LN'
-    ) AS ADDRESS,
+    fc.ADDRESS_ABBR AS ADDRESS,
     fc.CCN,
-    CASE
-        WHEN CAST(fc.AGE AS INTEGER) = 120 THEN '-'
-        ELSE CAST(CAST(fc.AGE AS INTEGER) AS VARCHAR)
-    END AS AGE,
+    fc.TYPE_OF_CRASH,
+    fc.TYPE_ABBR,
+    fc.AGE_CLEAN AS AGE,
+    fc.AGE_TYPE,
     COALESCE(fc.COUNT, 0) AS COUNT
 FROM dates d
 LEFT JOIN filtered_crashes fc
@@ -301,19 +356,24 @@ The last 7 days with available data range from <Value data={inc_map} column="WEE
                 <Column id=MODESEV title="Road User - Sev" wrap=true/>
                 <Column id=CCN title="CCN" wrap=true/>
                 <Column id=AGE title="Age" wrap=true totalAgg="-"/>
+                <Column id=TYPE_ABBR title="Crash" wrap=true totalAgg="-"/>
                 <Column id=ADDRESS title="Approx Address" wrap=true/>
                 <Column id=COUNT title="#" wrap=true/>
             {/if}
             {#if !isDesktop}
                 <Column id=REPORTDATE title="Date" fmt='hh:mm' wrap=true totalAgg="Total"/>
                 <Column id=MODESEV title="Road User - Sev" wrap=true/>
-                <Column id=AGE title="Age" wrap=true totalAgg="-"/>
+                <Column id=AGE_TYPE title="Age - Crash Type" wrap=true totalAgg="-"/>
                 <Column id=ADDRESS title="Approx Address" wrap=true/>
                 <Column id=COUNT title="#" wrap=true/>
             {/if}
         </DataTable>
     </Group>
 </Grid>
+
+<Note>
+    Crash type abbreviations: Motor Vehicle (MV), Motorcycle or Motor Driven Cycle (MC), Standing Scooter (SS), Multi-party (MP). 
+</Note>
 
 <Note>
     The latest crash record in the dataset is from <Value data={last_record} column="latest_record"/> and the data was last updated on <Value data={last_record} column="latest_update"/> hrs.
