@@ -6,12 +6,6 @@ queries:
 sidebar_position: 6
 ---
 
-```sql all
-   select *
-   from crashes.crashes
-   limit 5 
-```
-
 ```sql unique_mode
 select 
     MODE
