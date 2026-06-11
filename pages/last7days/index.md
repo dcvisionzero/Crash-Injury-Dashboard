@@ -42,6 +42,7 @@ WITH latest AS (
         date_trunc('day', MAX(LAST_RECORD)) AS end_date
     FROM crashes.crashes
 ),
+
 date_range AS (
     SELECT 
         (end_date - INTERVAL '6 day') AS start_date,
@@ -49,11 +50,13 @@ date_range AS (
         (end_date + INTERVAL '1 day') AS end_date_exclusive
     FROM latest
 ),
+
 dates AS (
     SELECT day 
     FROM date_range,
          generate_series(start_date, end_date, INTERVAL '1 day') AS t(day)
 ),
+
 -- Crash type lookup table
 crash_map AS (
     SELECT *
@@ -84,56 +87,56 @@ crash_map AS (
         ('unclassified', 'Unc')
     ) AS t(TYPE_OF_CRASH, TYPE_ABBR)
 ),
+
+-- 50-state street-name abbreviation lookup
+street_name_map AS (
+    SELECT *
+    FROM (VALUES
+        ('ALABAMA', 'AL'), ('ALASKA', 'AK'), ('ARIZONA', 'AZ'),
+        ('ARKANSAS', 'AR'), ('CALIFORNIA', 'CA'), ('COLORADO', 'CO'),
+        ('CONNECTICUT', 'CT'), ('DELAWARE', 'DE'), ('FLORIDA', 'FL'),
+        ('GEORGIA', 'GA'), ('HAWAII', 'HI'), ('IDAHO', 'ID'),
+        ('ILLINOIS', 'IL'), ('INDIANA', 'IN'), ('IOWA', 'IA'),
+        ('KANSAS', 'KS'), ('KENTUCKY', 'KY'), ('LOUISIANA', 'LA'),
+        ('MAINE', 'ME'), ('MARYLAND', 'MD'), ('MASSACHUSETTS', 'MA'),
+        ('MICHIGAN', 'MI'), ('MINNESOTA', 'MN'), ('MISSISSIPPI', 'MS'),
+        ('MISSOURI', 'MO'), ('MONTANA', 'MT'), ('NEBRASKA', 'NE'),
+        ('NEVADA', 'NV'), ('NEW HAMPSHIRE', 'NH'), ('NEW JERSEY', 'NJ'),
+        ('NEW MEXICO', 'NM'), ('NEW YORK', 'NY'), ('NORTH CAROLINA', 'NC'),
+        ('NORTH DAKOTA', 'ND'), ('OHIO', 'OH'), ('OKLAHOMA', 'OK'),
+        ('OREGON', 'OR'), ('PENNSYLVANIA', 'PA'), ('RHODE ISLAND', 'RI'),
+        ('SOUTH CAROLINA', 'SC'), ('SOUTH DAKOTA', 'SD'), ('TENNESSEE', 'TN'),
+        ('TEXAS', 'TX'), ('UTAH', 'UT'), ('VERMONT', 'VT'),
+        ('VIRGINIA', 'VA'), ('WASHINGTON', 'WA'), ('WEST VIRGINIA', 'WV'),
+        ('WISCONSIN', 'WI'), ('WYOMING', 'WY')
+    ) AS t(full_street, street_abbr)
+),
+
 filtered_crashes AS (
     SELECT 
         c.*,
         date_trunc('day', c.REPORTDATE) AS crash_day,
-        -- Address abbreviation (moved here for cleanliness)
-        REGEXP_REPLACE(
-            REGEXP_REPLACE(
-                REGEXP_REPLACE(
-                    REGEXP_REPLACE(
-                        REGEXP_REPLACE(
-                            REGEXP_REPLACE(
-                                REGEXP_REPLACE(
-                                    REGEXP_REPLACE(
-                                        REGEXP_REPLACE(
-                                            REGEXP_REPLACE(
-                                                REGEXP_REPLACE(
-                                                    REGEXP_REPLACE(
-                                                        c.ADDRESS,
-                                                        '\\bSTREET\\b', 'ST'
-                                                    ),
-                                                    '\\bAVENUE\\b', 'AVE'
-                                                ),
-                                                '\\bROAD\\b', 'RD'
-                                            ),
-                                            '\\bPLACE\\b', 'PL'
-                                        ),
-                                        '\\bCOURT\\b', 'CT'
-                                    ),
-                                    '\\bCIRCLE\\b', 'CIR'
-                                ),
-                                '\\bBOULEVARD\\b', 'BLVD'
-                            ),
-                            '\\bDRIVE\\b', 'DR'
-                        ),
-                        '\\bTERRACE\\b', 'TER'
-                    ),
-                    '\\bPARKWAY\\b', 'PKWY'
-                ),
-                '\\bEXPRESSWAY\\b', 'EXPY'
+
+        ------------------------------------------------------------------
+        -- STEP 1: STREET-NAME ABBREVIATIONS (GEORGIA → GA, ALABAMA → AL)
+        ------------------------------------------------------------------
+        COALESCE(
+            (
+                SELECT REGEXP_REPLACE(c.ADDRESS, sn.full_street, sn.street_abbr)
+                FROM street_name_map sn
+                WHERE c.ADDRESS LIKE '%' || sn.full_street || '%'
+                LIMIT 1
             ),
-            '\\bLANE\\b', 'LN'
-        ) AS ADDRESS_ABBR,
-        -- Crash type abbreviation from lookup
+            c.ADDRESS
+        ) AS ADDR1,
+
         m.TYPE_ABBR,
-        -- AGE cleaned once
+
         CASE 
             WHEN CAST(c.AGE AS INTEGER) = 120 THEN '-'
             ELSE CAST(CAST(c.AGE AS INTEGER) AS VARCHAR)
         END AS AGE_CLEAN,
-        -- AGE + TYPE_ABBR combined once
+
         (
             CASE 
                 WHEN CAST(c.AGE AS INTEGER) = 120 THEN '-'
@@ -142,6 +145,7 @@ filtered_crashes AS (
             || ' ' ||
             m.TYPE_ABBR
         ) AS AGE_TYPE
+
     FROM crashes.crashes c
     JOIN date_range d
         ON c.REPORTDATE >= d.start_date 
@@ -160,6 +164,7 @@ filtered_crashes AS (
                          END
                      )
 )
+
 SELECT 
     d.day,
     COALESCE(fc.REPORTDATE, d.day) AS REPORTDATE,
@@ -167,13 +172,75 @@ SELECT
     COALESCE(fc.LATITUDE, 0) AS LATITUDE,
     COALESCE(fc.LONGITUDE, 0) AS LONGITUDE,
     SUBSTRING(fc.MODE, 1, 3) || '-' || SUBSTRING(fc.SEVERITY, 1) AS MODESEV,
-    fc.ADDRESS_ABBR AS ADDRESS,
+
+    ------------------------------------------------------------------
+    -- FINAL ADDRESS CLEANUP PIPELINE (CORRECT ORDER)
+    ------------------------------------------------------------------
+    TRIM(
+        REGEXP_REPLACE(
+            REGEXP_REPLACE(
+                REGEXP_REPLACE(
+                    REGEXP_REPLACE(
+                        REGEXP_REPLACE(
+                            REGEXP_REPLACE(
+                                -- STEP 2: STREET-TYPE ABBREVIATIONS
+                                REGEXP_REPLACE(
+                                    REGEXP_REPLACE(
+                                        REGEXP_REPLACE(
+                                            REGEXP_REPLACE(
+                                                REGEXP_REPLACE(
+                                                    REGEXP_REPLACE(
+                                                        REGEXP_REPLACE(
+                                                            REGEXP_REPLACE(
+                                                                REGEXP_REPLACE(
+                                                                    REGEXP_REPLACE(
+                                                                        REGEXP_REPLACE(
+                                                                            fc.ADDR1,
+                                                                            '\\bSTREET\\b', 'ST'
+                                                                        ),
+                                                                        '\\bAVENUE\\b', 'AVE'
+                                                                    ),
+                                                                    '\\bROAD\\b', 'RD'
+                                                                ),
+                                                                '\\bPLACE\\b', 'PL'
+                                                            ),
+                                                            '\\bCOURT\\b', 'CT'
+                                                        ),
+                                                        '\\bCIRCLE\\b', 'CIR'
+                                                    ),
+                                                    '\\bBOULEVARD\\b', 'BLVD'
+                                                ),
+                                                '\\bDRIVE\\b', 'DR'
+                                            ),
+                                            '\\bTERRACE\\b', 'TER'
+                                        ),
+                                        '\\bPARKWAY\\b', 'PKWY'
+                                    ),
+                                    '\\bEXPRESSWAY\\b', 'EXPY'
+                                ),
+                                '\\bLANE\\b', 'LN'
+                            ),
+                            -- STEP 3: REMOVE INTERSTATE BN (after WA replacement)
+                            'INTERSTATE BN( WA,)?', ''
+                        ),
+                        -- STEP 4: REMOVE WASHINGTON, and WA,
+                        'WASHINGTON,', ''
+                    ),
+                    '\\b[A-Z]{2},', ''   -- STEP 5: remove any state abbreviation + comma
+                ),
+                '  +', ' '             -- STEP 6: collapse double spaces
+            ),
+            ',$', ''                  -- STEP 7: remove trailing comma
+        )
+    ) AS ADDRESS,
+
     fc.CCN,
     fc.TYPE_OF_CRASH,
     fc.TYPE_ABBR,
     fc.AGE_CLEAN AS AGE,
     fc.AGE_TYPE,
     COALESCE(fc.COUNT, 0) AS COUNT
+
 FROM dates d
 LEFT JOIN filtered_crashes fc
     ON fc.crash_day = d.day
@@ -367,6 +434,10 @@ The last 7 days with available data range from <Value data={inc_map} column="WEE
 
 <Note>
     Crash type abbreviations: Motor Vehicle (MV), Motorcycle or Motor Driven Cycle (MC), Standing Scooter (SS), Multi-party (MP). 
+</Note>
+
+<Note>
+    State avenues are abbreviated. Ex: Massachusetts → MA. 
 </Note>
 
 <Note>
