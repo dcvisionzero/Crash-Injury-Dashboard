@@ -414,10 +414,10 @@ The last 7 days with available data range from <Value data={inc_map} column="WEE
         <DataTable data={inc_map} title="Last 7 Days - Table of {`${mode_severity_selection[0].SEVERITY_SELECTION}`} for {`${mode_severity_selection[0].MODE_SELECTION}`}" wrapTitles=true rowShading=true groupBy=WEEKDAY subtotals=true sort="day desc" totalRow=true accordionRowColor="#D3D3D3">
             {#if isDesktop}
                 <Column id=REPORTDATE title="Date" fmt='hh:mm' wrap=true totalAgg="Total"/>
-                <Column id=MODESEV title="Road User - Sev" wrap=true/>
-                <Column id=CCN title="CCN" wrap=true/>
                 <Column id=AGE title="Age" wrap=true totalAgg="-"/>
+                <Column id=MODESEV title="Road User - Sev" wrap=true/>
                 <Column id=TYPE_ABBR title="Crash" wrap=true totalAgg="-"/>
+                <Column id=CCN title="CCN" wrap=true/>                 
                 <Column id=ADDRESS title="Approx Address" wrap=true/>
                 <Column id=COUNT title="#" wrap=true/>
             {/if}
@@ -433,7 +433,7 @@ The last 7 days with available data range from <Value data={inc_map} column="WEE
 </Grid>
 
 <Note>
-    Crash type abbreviations: Motor Vehicle (MV), Motorcycle or Motor Driven Cycle (MC), Standing Scooter (SS), Multi-party (MP). 
+    <b>Crash type abbreviations</b>: Motor Vehicle (MV), Bicycle (Bic), Pedestrian (Ped), Other (Oth), Motorcycle* (MC*), Standing Scooter* (SS*), Multi-party (MP), Object (Obj), Unclassified (Unc).
 </Note>
 
 <Note>

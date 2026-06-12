@@ -256,6 +256,8 @@ description="By default, there is a two-day lag after the latest update"
 
 <Note>
     Each flow goes from a road user to the crash type they were involved in. Percentages show each crash type's share of that road user's total. Counts are persons, not crashes.
+    
+    <p><b>If too many counts and percentages overlap, try further filtering by Road User or selecting a node at either end of the chart (vertical rectangles).</b></p>
 </Note>
 
 <script>
@@ -337,15 +339,11 @@ description="By default, there is a two-day lag after the latest update"
 
 
 <Note>
-    Crash type abbreviations: Motor Vehicle (MV), Bicycle (Bic), Pedestrian (Ped), Other (Oth), Motorcycle* (MC*), Standing Scooter* (SS*), Multi-party (MP), Object (Obj), Unclassified (Unc).
+    <b>Crash type abbreviations</b>: Motor Vehicle (MV), Bicycle (Bic), Pedestrian (Ped), Other (Oth), Motorcycle* (MC*), Standing Scooter* (SS*), Multi-party (MP), Object (Obj), Unclassified (Unc).
 </Note>
 
 <Note>
     *Fatal only.  For fatalities, crash type is defined exclusively by the first striking vehicle and the second striking vehicle or object.
-</Note>
-
-<Note>
-    If too many counts and percentages overlap, try further filtering by Road User or moving the Road User node on the left side.
 </Note>
 
 <Note>
