@@ -29,6 +29,36 @@ from crashes.crashes
 group by 1
 ```
 
+```sql mv_involvement
+SELECT
+    SUM(COUNT) AS total_value,
+    COALESCE(SUM(COUNT) FILTER (WHERE INVOLVES_MOTOR_VEHICLE), 0) AS mv_value,
+    COALESCE(SUM(COUNT) FILTER (WHERE INVOLVES_MOTOR_VEHICLE), 0)::DOUBLE
+        / NULLIF(SUM(COUNT), 0) AS mv_pct,
+    CASE
+        -- Full calendar year -> "in 2025"
+        WHEN '${inputs.date_range.start}'::DATE = DATE_TRUNC('year', '${inputs.date_range.start}'::DATE)
+         AND '${inputs.date_range.end}'::DATE   = DATE_TRUNC('year', '${inputs.date_range.start}'::DATE) + INTERVAL '1 year' - INTERVAL '1 day'
+        THEN 'in ' || EXTRACT(YEAR FROM '${inputs.date_range.start}'::DATE)::VARCHAR
+        -- Current year through the latest data -> "in 2026 YTD"
+        WHEN '${inputs.date_range.start}'::DATE = DATE_TRUNC('year', CURRENT_DATE)
+         AND '${inputs.date_range.end}'::DATE  >= (SELECT MAX(LAST_RECORD)::DATE FROM crashes.crashes)
+        THEN 'in ' || EXTRACT(YEAR FROM '${inputs.date_range.start}'::DATE)::VARCHAR || ' YTD'
+        -- Otherwise -> "between MM/DD/YY and MM/DD/YY"
+        ELSE 'between ' || strftime('${inputs.date_range.start}'::DATE, '%m/%d/%y')
+             || ' and ' || strftime('${inputs.date_range.end}'::DATE, '%m/%d/%y')
+    END AS period_label
+FROM crashes.crashes
+WHERE
+    MODE IN ${inputs.multi_mode_dd.value}
+    AND SEVERITY = '${inputs.multi_severity.value}'
+    AND REPORTDATE BETWEEN ('${inputs.date_range.start}'::DATE)
+        AND (('${inputs.date_range.end}'::DATE) + INTERVAL '1 day')
+    AND AGE BETWEEN ${inputs.min_age.value}
+        AND (CASE WHEN ${inputs.min_age.value} <> 0 AND ${inputs.max_age.value} = 120
+                  THEN 119 ELSE ${inputs.max_age.value} END);
+```
+
 ```sql sankey_crash_type
 -- Flows: Road User (source) -> Crash Type (target), weighted by persons (COUNT).
 -- percent = each flow's share of its source road user's total (so it reads as
@@ -166,8 +196,20 @@ FROM
   total_modes_cte;
 ```
 
+<ul class="markdown">
+  {#if mv_involvement[0] && mv_involvement[0].total_value > 0}
+    <li>
+      <b><Value data={mv_involvement} column="mv_pct" fmt="pct1"/> of {mode_severity_selection[0].SEVERITY_SELECTION}</b> among {mode_severity_selection[0].MODE_SELECTION} (<Value data={mv_involvement} column="mv_value" fmt="#,##0"/> of <Value data={mv_involvement} column="total_value" fmt="#,##0)"/> <b> involved a Motor Vehicle (MV)</b> {mv_involvement[0].period_label}.
+    </li>
+  {:else}
+    <li>
+      No {mode_severity_selection[0].SEVERITY_SELECTION} match the current filters.
+    </li>
+  {/if}
+</ul>
+
 <DateRange
-start="2015-01-01"
+start="2017-01-01"
 end={
     (last_record && last_record[0] && last_record[0].end_date)
     ? `${last_record[0].end_date}`
@@ -318,21 +360,21 @@ description="By default, there is a two-day lag after the latest update"
     emptyMessage="No crashes match the current filters"   
     echartsOptions={{
         series: [{
-            data: sankeyNodes,
-            top: 40,
-            left: '3%',
-            right: '8%',
-            bottom: '2%',
-            labelLayout: { hideOverlap: false },
-            label:     { fontSize: 13, formatter: (params) => params.name },
-            edgeLabel: { fontSize: 13 }
-        }],
-        graphic: [
-            { type: 'text', left: '3%',  top: 15,
-            style: { text: 'Road User',  fontSize: 13, fontWeight: 'bold', fill: '#475569' } },
-            { type: 'text', left: '70%', top: 15,
-            style: { text: crashHeader, fontSize: 13, fontWeight: 'bold', fill: '#475569', textAlign: 'center', lineHeight: 17 } }
-        ]
+                    data: sankeyNodes,
+                    top: 40,
+                    left: '0%',
+                    right: '8%',
+                    bottom: '2%',
+                    labelLayout: { hideOverlap: false },
+                    label:     { fontSize: 13, formatter: (params) => params.name },
+                    edgeLabel: { fontSize: 13 }
+                }],
+                graphic: [
+                    { type: 'text', left: '0%',  top: 15,
+                    style: { text: 'Road User',  fontSize: 13, fontWeight: 'bold', fill: '#475569' } },
+                    { type: 'text', left: '68.5%', top: 15,
+                    style: { text: crashHeader, fontSize: 13, fontWeight: 'bold', fill: '#475569', textAlign: 'center', lineHeight: 17 } }
+                ]
     }}
 />
 {/key}
@@ -401,10 +443,3 @@ Crash type describes the mix of road users or vehicles involved in a crash, with
 </div>
 
 </Details>
-
-<style>
-  :global(.crash-type-about th),
-  :global(.crash-type-about td) {
-    padding: 8px 22px;
-  }
-</style>
