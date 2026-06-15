@@ -62,7 +62,7 @@ filtered AS (
                   )
 )
 SELECT
-    'Suspected Impairment*' AS Impairment,
+    'Suspected Impairment**' AS Impairment,
     c.SuspectedImpaired,
     COALESCE(SUM(f.Count), 0) AS Count
 FROM categories c
@@ -100,7 +100,7 @@ filtered AS (
                   )
 )
 SELECT
-    'Suspected Speeding** ' AS Speeding,
+    'Suspected Speeding*** ' AS Speeding,
     c.SuspectedSpeeding,
     COALESCE(SUM(f.Count), 0) AS Count
 FROM categories c
@@ -138,7 +138,7 @@ filtered AS (
                   )
 )
 SELECT
-    'Hit-and-Run                  ' AS HitAndRunLabel,
+    'Hit-and-Run                   ' AS HitAndRunLabel,
     c.HitAndRun,
     COALESCE(SUM(f.Count), 0) AS Count
 FROM categories c
@@ -146,6 +146,56 @@ LEFT JOIN filtered f
     ON c.HitAndRun = f.HitAndRun
 GROUP BY c.HitAndRun
 ORDER BY c.HitAndRun;
+```
+
+```sql AnyCF
+WITH categories AS (
+    SELECT * FROM (VALUES 
+        ('Yes'),
+        ('No'),
+        ('Unknown')
+    ) AS t(AnyRiskFactor)
+),
+normalized AS (
+    SELECT
+        UPPER(substr(SuspectedImpaired, 1, 1)) || LOWER(substr(SuspectedImpaired, 2)) AS imp,
+        UPPER(substr(SuspectedSpeeding, 1, 1)) || LOWER(substr(SuspectedSpeeding, 2)) AS spd,
+        UPPER(substr(HitAndRun, 1, 1))         || LOWER(substr(HitAndRun, 2))         AS har,
+        COUNT AS Count
+    FROM crashes.crashes
+    WHERE replace(MODE, '*', '') IN ${inputs.multi_mode_dd.value}
+      AND SEVERITY = 'Fatal'
+      AND REPORTDATE BETWEEN ('${inputs.date_range.start}'::DATE) 
+                          AND (('${inputs.date_range.end}'::DATE) + INTERVAL '1 day')
+      AND AGE BETWEEN ${inputs.min_age.value}
+                  AND (
+                      CASE 
+                          WHEN ${inputs.min_age.value} <> 0 
+                           AND ${inputs.max_age.value} = 120
+                          THEN 119
+                          ELSE ${inputs.max_age.value}
+                      END
+                  )
+),
+classified AS (
+    SELECT
+        CASE
+            WHEN imp = 'Yes' OR spd = 'Yes' OR har = 'Yes' THEN 'Yes'
+            WHEN imp = 'No'  AND spd = 'No'  AND har = 'No'  THEN 'No'
+            ELSE 'Unknown'
+        END AS AnyRiskFactor,
+        Count
+    FROM normalized
+)
+SELECT
+    'Any Contributing Factor*' AS AnyRiskFactorLabel,
+    c.AnyRiskFactor,
+    COALESCE(SUM(f.Count), 0) AS Count
+FROM categories c
+LEFT JOIN classified f
+    ON c.AnyRiskFactor = f.AnyRiskFactor
+GROUP BY c.AnyRiskFactor
+ORDER BY c.AnyRiskFactor;
 ```
 
 ```sql unique_hin
@@ -733,7 +783,7 @@ FROM
             Each point on the map represents an fatality. Fatality incidents can overlap in the same spot.
         </Note>
         <BaseMap
-            height=380
+            height=400
             startingZoom=11
         >
             <Points data={inc_map} lat=LATITUDE long=LONGITUDE pointName=MODE value=SEVERITY colorPalette={['#ff5a53']} ignoreZoom=true link=link
@@ -765,11 +815,31 @@ FROM
     </Group>
     <Group>
         <div style="font-size: 14px;">
-            <b>Contributing Factors in Fatalities for {`${mode_selection[0].MODE_SELECTION}`} ({`${hin_rate[0].period}`})</b>
+            <b>Behavioral Contributing Factors in Fatalities for {`${mode_selection[0].MODE_SELECTION}`} ({`${hin_rate[0].period}`})</b>
         </div>
         <BarChart 
-          data={Impairment}
+          data={AnyCF}
           chartAreaHeight=35
+          x=AnyRiskFactorLabel
+          y=Count
+          xLabelWrap={true}
+          swapXY=true
+          yFmt=pct0
+          series=AnyRiskFactor
+          labels={true}
+          type=stacked100
+          downloadableData=false
+          downloadableImage=false
+          leftPadding={10}
+          seriesOrder={['Yes','No','Unknown']}
+          seriesColors={{'Yes': '#271F7F','No': '#00FFD4','Unknown': '#A9A9A9'}}
+          echartsOptions={{
+            grid: {bottom: 0 }
+          }}
+        />
+        <BarChart 
+          data={Impairment}
+          chartAreaHeight=11
           x=Impairment
           y=Count
           xLabelWrap={true}
@@ -781,10 +851,12 @@ FROM
           downloadableData=false
           downloadableImage=false
           leftPadding={10} 
+          legend=false
+          yAxisLabels=false
           seriesOrder={['Yes','No','Unknown']}
           seriesColors={{'Yes': '#271F7F','No': '#00FFD4','Unknown': '#A9A9A9'}}
           echartsOptions={{
-            grid: {bottom: 0 }
+            grid: { top: 0, bottom: 0 }
           }}
         />
         <BarChart 
@@ -831,6 +903,15 @@ FROM
             grid: { top: 0}
           }}
         />
+        <Note>
+            *<b>Any Contributing Factor</b>: A fatality is counted as having a behavioral contributing factor if any of the following are true: Suspected Impairment, Suspected Speeding, or Hit‑and‑Run.
+        </Note>
+        <Note>
+            **<b>Suspected Impairment</b> is a preliminary determination. It may apply to either party involved in a crash. If the crash is handled by USPP, the determination is set as "Unknown". If the crash is a hit-and-run, the determination is also set as "Unknown".
+        </Note>
+        <Note>
+            ***<b>Suspected Speeding</b>" is a preliminary determination. It may apply to either party involved in a crash. If the crash is handled by USPP, the determination is set as "Unknown".
+        </Note>        
         <div style="font-size: 14px;">
             <b>Year Over Year Comparison of Fatalities for {`${mode_selection[0].MODE_SELECTION}`}</b>
         </div>
@@ -857,16 +938,9 @@ FROM
         >
           <ReferenceLine data={ytd_avg} y="average_count" label={`${ytd_avg[0].year_range_label}`}/>
         </BarChart> 
-        <Note>
-            *The determination of "Suspected Impairment" is preliminary. It may apply to either party involved in a crash. If the crash is handled by USPP, the determination is set as "Unknown". If the crash is a hit-and-run, the determination is also set as "Unknown".
-        </Note>
-        <Note>
-            **The determination of "Suspected Speeding" is preliminary. It may apply to either party involved in a crash. If the crash is handled by USPP, the determination is set as "Unknown".
-        </Note>
-        <Note>
-            The latest crash record in the dataset is from <Value data={last_record} column="latest_record"/> and the data was last updated on <Value data={last_record} column="latest_update"/> hrs.
-        </Note>       
     </Group>
 </Grid>
 
-
+<Note>
+    The latest crash record in the dataset is from <Value data={last_record} column="latest_record"/> and the data was last updated on <Value data={last_record} column="latest_update"/> hrs.
+</Note>       
