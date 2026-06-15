@@ -23,6 +23,11 @@ jobs:
       - name: Install dependencies
         run: npm install
 
+      - name: Download crashes.parquet from Release
+        run: |
+          curl -L -o crashes.parquet \
+            https://github.com/rafaelmorenoco/Crash-Injury-Dashboard-Backend/releases/latest/download/crashes.parquet
+
       - name: Build
         env:
           BASE_PATH: '/${{ github.event.repository.name }}'
