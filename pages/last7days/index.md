@@ -137,14 +137,8 @@ filtered_crashes AS (
             ELSE CAST(CAST(c.AGE AS INTEGER) AS VARCHAR)
         END AS AGE_CLEAN,
 
-        (
-            CASE 
-                WHEN CAST(c.AGE AS INTEGER) = 120 THEN '-'
-                ELSE CAST(CAST(c.AGE AS INTEGER) AS VARCHAR)
-            END
-            || ' ' ||
-            m.TYPE_ABBR
-        ) AS AGE_TYPE
+        -- CHANGE: AGE_TYPE now only TYPE_ABBR (no age)
+        m.TYPE_ABBR AS AGE_TYPE
 
     FROM crashes.crashes c
     JOIN date_range d
@@ -171,10 +165,15 @@ SELECT
     STRFTIME('%m/%d %a', d.day) AS WEEKDAY,
     COALESCE(fc.LATITUDE, 0) AS LATITUDE,
     COALESCE(fc.LONGITUDE, 0) AS LONGITUDE,
+
+    -- Original MODESEV (kept)
     SUBSTRING(fc.MODE, 1, 3) || '-' || SUBSTRING(fc.SEVERITY, 1) AS MODESEV,
 
+    -- NEW: age + space + MODESEV (your requested format)
+    (fc.AGE_CLEAN || ' ' || SUBSTRING(fc.MODE, 1, 3) || '-' || SUBSTRING(fc.SEVERITY, 1)) AS AGE_MODESEV,
+
     ------------------------------------------------------------------
-    -- FINAL ADDRESS CLEANUP PIPELINE (CORRECT ORDER)
+    -- FINAL ADDRESS CLEANUP PIPELINE (unchanged)
     ------------------------------------------------------------------
     TRIM(
         REGEXP_REPLACE(
@@ -311,7 +310,7 @@ WITH
 SELECT
   CASE
     WHEN mode_count = 0 THEN ' '
-    WHEN mode_count = total_mode_count THEN 'All Road Users'
+    WHEN mode_count = total_mode_count THEN 'All Road Users (RU)'
     WHEN mode_count = 1 THEN mode_list
     WHEN mode_count = 2 THEN REPLACE(mode_list, ', ', ' and ')
     ELSE REGEXP_REPLACE(mode_list, ',([^,]+)$', ', and \\1')
@@ -423,8 +422,8 @@ The last 7 days with available data range from <Value data={inc_map} column="WEE
             {/if}
             {#if !isDesktop}
                 <Column id=REPORTDATE title="Date" fmt='hh:mm' wrap=true totalAgg="Total"/>
-                <Column id=MODESEV title="Road User - Sev" wrap=true/>
-                <Column id=AGE_TYPE title="Age - Crash Type" wrap=true totalAgg="-"/>
+                <Column id=AGE_MODESEV title="Age - RU - Sev" wrap=true/>
+                <Column id=TYPE_ABBR title="Crash Type" wrap=true totalAgg="-"/>
                 <Column id=ADDRESS title="Approx Address" wrap=true/>
                 <Column id=COUNT title="#" wrap=true/>
             {/if}
