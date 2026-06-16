@@ -17,8 +17,8 @@ group by 1
 select 
     SEVERITY
 from crashes.crashes
-WHERE
-    SEVERITY = 'Fatal'
+--WHERE
+    --SEVERITY = 'Fatal'
 group by 1
 ```
 
@@ -796,7 +796,7 @@ description="By default, there is a two-day lag after the latest update"
     value=SEVERITY
     title="Severity"
     multiple=true
-    defaultValue={['Fatal', 'Major']}
+    defaultValue={['Fatal']}
 />
 
 <Dropdown
