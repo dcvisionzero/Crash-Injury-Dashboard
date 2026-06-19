@@ -154,16 +154,20 @@ WITH
       END AS is_full_year
     FROM report_date_range
   ),
+  -- Selected years now come from the Year dropdown, capped at the 5 most recent
   years AS (
-    SELECT gs AS yr, d.current_year
-    FROM date_info d, generate_series(current_year - 3, current_year) AS t(gs)
+    SELECT DISTINCT CAST(strftime('%Y', REPORTDATE) AS BIGINT) AS yr
+    FROM crashes.crashes
+    WHERE strftime('%Y', REPORTDATE) IN ${inputs.multi_year.value}
+    ORDER BY yr DESC
+    LIMIT 6
   ),
   months AS (
     SELECT gs AS mo
     FROM generate_series(1, 12) AS t(gs)
   ),
   year_month_grid AS (
-    SELECT y.yr, y.current_year, m.mo
+    SELECT y.yr, m.mo
     FROM years y
     CROSS JOIN months m
   ),
@@ -171,11 +175,9 @@ WITH
     SELECT
       CAST(strftime('%Y', REPORTDATE) AS BIGINT) AS yr,
       CAST(strftime('%m', REPORTDATE) AS BIGINT) AS mo,
-      SUM("COUNT") AS month_count,
-      d.current_year
+      SUM("COUNT") AS month_count
     FROM crashes.crashes, date_info d
-    WHERE CAST(strftime('%Y', REPORTDATE) AS BIGINT)
-          BETWEEN (current_year - 3) AND current_year
+    WHERE CAST(strftime('%Y', REPORTDATE) AS BIGINT) IN (SELECT yr FROM years)
       AND crashes.SEVERITY IN ${inputs.multi_severity.value}
       AND crashes.MODE IN ${inputs.multi_mode_dd.value}
       AND crashes.AGE BETWEEN ${inputs.min_age.value}
@@ -191,15 +193,14 @@ WITH
           d.is_full_year
           OR strftime(REPORTDATE, '%m-%d') <= d.month_day_end
       )
-    GROUP BY yr, mo, d.current_year
+    GROUP BY yr, mo
   ),
   base AS (
     SELECT 
       g.yr AS Year,
       g.mo AS Month,
       strftime(make_date(g.yr, g.mo, 1), '%b') AS Month_Name,
-      COALESCE(mc.month_count, 0) AS Count,
-      g.current_year
+      COALESCE(mc.month_count, 0) AS Count
     FROM year_month_grid g
     LEFT JOIN monthly_counts mc
       ON g.yr = mc.yr AND g.mo = mc.mo
@@ -212,11 +213,10 @@ WITH
       ) AS Avg_Label,
       Month,
       Month_Name,
-      ROUND(AVG(Count), 0) AS Avg,
-      current_year
+      ROUND(AVG(Count), 0) AS Avg
     FROM base
-    WHERE Year BETWEEN current_year - 3 AND current_year - 1
-    GROUP BY Month, Month_Name, current_year
+    WHERE Year <> CAST(strftime('%Y', current_date) AS BIGINT)  -- exclude current calendar year from the baseline
+    GROUP BY Month, Month_Name
   )
 SELECT
   CAST(b.Year AS VARCHAR) AS Year,
@@ -224,20 +224,13 @@ SELECT
   b.Month_Name,
   b.Count,
   a.Avg,
-  a.Avg_Label,
-  b.current_year
+  a.Avg_Label
 FROM base b
 LEFT JOIN avg_row a
   ON b.Month = a.Month
 ORDER BY 
   b.Month,
-  CASE 
-    WHEN b.Year = (b.current_year - 3) THEN 1
-    WHEN b.Year = (b.current_year - 2) THEN 2
-    WHEN b.Year = (b.current_year - 1) THEN 3
-    WHEN a.Avg_Label IS NOT NULL       THEN 4
-    WHEN b.Year = b.current_year       THEN 5
-  END;
+  b.Year;
 ```
 
 <Dropdown
@@ -319,6 +312,27 @@ defaultValue={
 description="By default, there is a two-day lag after the latest update"
 />
 
+<Dropdown
+    data={unique_year}
+    name=multi_year
+    value=year_string
+    title="Year"
+    multiple=true
+    order="year_string desc"
+    disableSelectAll=true
+    defaultValue={
+      (() => {
+        const etYear = Number(
+          new Intl.DateTimeFormat('en-CA', { timeZone: 'America/New_York' })
+            .format(new Date())
+            .slice(0, 4)
+        );
+        return [etYear, etYear - 1, etYear - 2, etYear - 3].map(String);
+      })()
+    }
+    description="Defaults to the current year and the 3 prior. Select up to 6; only the 6 most recent of your selection are charted."
+/>
+
 <div style="font-size: 14px;">
     <b>Year to Date Monthly Comparison of {`${mode_severity_selection[0].SEVERITY_SELECTION}`} for {`${mode_severity_selection[0].MODE_SELECTION}`}</b>
 </div>
@@ -344,7 +358,7 @@ description="By default, there is a two-day lag after the latest update"
   };
 
   const defaultPalette = [
-    '#03045E','#0077B6','#00B4d8','#90E0EF','#CAF0F8'
+    '#03045E','#023E8A','#0077B6','#00B4D8','#90E0EF','#CAF0F8'
   ];
 
   $: ytd_month_h1 = ytd_month.filter(d => d.Month >= 1 && d.Month <= 6);
@@ -392,13 +406,14 @@ description="By default, there is a two-day lag after the latest update"
       labels={true}
       seriesorder={ytd_month.Year}
       echartsOptions={{
-        series: [labelConfig, labelConfig, labelConfig, labelConfig, labelConfig]
+        series: [labelConfig, labelConfig, labelConfig, labelConfig, labelConfig, labelConfig]
       }}
     />
     <Line 
       x=Month 
       y=Avg
       series=Avg_Label
+      color='#6c757d'
       smooth={true}
       labels=true
       markers=true
@@ -447,13 +462,14 @@ description="By default, there is a two-day lag after the latest update"
       labels={true}
       seriesorder={ytd_month_h1.Year}
       echartsOptions={{
-        series: [labelConfig, labelConfig, labelConfig, labelConfig, labelConfig]
+        series: [labelConfig, labelConfig, labelConfig, labelConfig, labelConfig, labelConfig]
       }}
     />
     <Line 
       x=Month 
       y=Avg
       series=Avg_Label
+      color='#6c757d'
       smooth={true}
       labels=true
       markers=true
@@ -502,13 +518,14 @@ description="By default, there is a two-day lag after the latest update"
       labels={true}
       seriesorder={ytd_month_h2.Year}
       echartsOptions={{
-        series: [labelConfig, labelConfig, labelConfig, labelConfig, labelConfig]
+        series: [labelConfig, labelConfig, labelConfig, labelConfig, labelConfig, labelConfig]
       }}
     />
     <Line 
       x=Month 
       y=Avg
       series=Avg_Label
+      color='#6c757d'
       smooth={true}
       labels=true
       markers=true
