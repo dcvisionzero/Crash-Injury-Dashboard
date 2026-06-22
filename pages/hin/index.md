@@ -843,7 +843,7 @@ description="By default, there is a two-day lag after the latest update"
         />
         </BaseMap>
         <Note>
-            The road segments have been oversized for visualization purposes
+            The HIN spatial aggregation area is set by a 100‑foot radius from the road centerline.
         </Note>
     </Group>
     <Group>
