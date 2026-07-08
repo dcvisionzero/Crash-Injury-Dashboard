@@ -10,8 +10,8 @@ queries:
 <Tabs>
 <Tab label="{`${yoy_text_fatal_3ytd[0].current_year_label}`} vs {`${yoy_text_fatal_3ytd[0].prior_period_label}`}">
 
-    - As of <Value data={yoy_text_fatal_3ytd} column="max_report_date_formatted"/> there <Value data={yoy_text_fatal_3ytd} column="has_have"/> been {yoy_text_fatal_3ytd[0].current_year_sum} <Value data={yoy_text_fatal_3ytd} column="fatality"/> among all road users in <Value data={yoy_text_fatal_3ytd} column="current_year" fmt='####","'/>  {Number(yoy_text_fatal_3ytd[0].difference).toFixed(1)} <Value data={yoy_text_fatal_3ytd} column="difference_text"/> (<Delta data={yoy_text_fatal_3ytd} column="percentage_change" fmt="0%;-0%;0%" downIsGood=True neutralMin=-0.00 neutralMax=0.00/>) compared to the last three-years-to-date average.
-    - As of <Value data={yoy_text_major_injury_3ytd} column="max_report_date_formatted"/> there <Value data={yoy_text_major_injury_3ytd} column="has_have"/> been {yoy_text_major_injury_3ytd[0].current_year_sum} <Value data={yoy_text_major_injury_3ytd} column="major_injury"/> among all road users in <Value data={yoy_text_major_injury_3ytd} column="current_year" fmt='####","'/>   {Number(yoy_text_major_injury_3ytd[0].difference).toFixed(1)} <Value data={yoy_text_major_injury_3ytd} column="difference_text"/> (<Delta data={yoy_text_major_injury_3ytd} column="percentage_change" fmt="0%;-0%;0%" downIsGood=True neutralMin=-0.00 neutralMax=0.00/>) compared to the last three-years-to-date average.
+    - As of <Value data={yoy_text_fatal_3ytd} column="max_report_date_formatted"/> there <Value data={yoy_text_fatal_3ytd} column="has_have"/> been {yoy_text_fatal_3ytd[0].current_year_sum} <Value data={yoy_text_fatal_3ytd} column="fatality"/> among all road users in <Value data={yoy_text_fatal_3ytd} column="current_year" fmt='####","'/>  {Number(yoy_text_fatal_3ytd[0].difference).toFixed(0)} <Value data={yoy_text_fatal_3ytd} column="difference_text"/> (<Delta data={yoy_text_fatal_3ytd} column="percentage_change" fmt="0%;-0%;0%" downIsGood=True neutralMin=-0.00 neutralMax=0.00/>) compared to the last three-years-to-date average.
+    - As of <Value data={yoy_text_major_injury_3ytd} column="max_report_date_formatted"/> there <Value data={yoy_text_major_injury_3ytd} column="has_have"/> been {yoy_text_major_injury_3ytd[0].current_year_sum} <Value data={yoy_text_major_injury_3ytd} column="major_injury"/> among all road users in <Value data={yoy_text_major_injury_3ytd} column="current_year" fmt='####","'/>   {Number(yoy_text_major_injury_3ytd[0].difference).toFixed(0)} <Value data={yoy_text_major_injury_3ytd} column="difference_text"/> (<Delta data={yoy_text_major_injury_3ytd} column="percentage_change" fmt="0%;-0%;0%" downIsGood=True neutralMin=-0.00 neutralMax=0.00/>) compared to the last three-years-to-date average.
 
 </Tab>
 <Tab label="{`${yoy_text_fatal_3ytd[0].current_year_label}`} vs {`${yoy_text_fatal_3ytd[0].last_year_label}`} YTD">
@@ -536,12 +536,12 @@ ORDER BY MODE, period;
 ```
 
 ```sql period_comp_mode_3ytd
-WITH 
+WITH
 -- Normalize the user-provided dates to an exclusive end_date
 report_date_range AS (
     SELECT
-      CASE 
-        WHEN '${inputs.date_range.end}'::DATE 
+      CASE
+        WHEN '${inputs.date_range.end}'::DATE
              >= (SELECT MAX(LAST_RECORD) FROM crashes.crashes)::DATE
         THEN (SELECT MAX(LAST_RECORD) FROM crashes.crashes)::DATE + INTERVAL '1 day'
         ELSE '${inputs.date_range.end}'::DATE + INTERVAL '1 day'
@@ -553,7 +553,7 @@ validate_range AS (
     SELECT
       start_date,
       end_date,
-      CASE 
+      CASE
         WHEN end_date > start_date + INTERVAL '1 year' THEN 0
         WHEN EXTRACT(YEAR FROM start_date) <> EXTRACT(YEAR FROM end_date - INTERVAL '1 day')
           THEN 0
@@ -593,7 +593,7 @@ modes_and_severities AS (
 ),
 -- Current period sum by mode
 current_period AS (
-    SELECT 
+    SELECT
       MODE,
       SUM(COUNT) AS sum_count
     FROM crashes.crashes
@@ -603,7 +603,7 @@ current_period AS (
       AND REPORTDATE <  (SELECT end_date   FROM date_info)
       AND AGE BETWEEN ${inputs.min_age.value}
                   AND (
-                    CASE 
+                    CASE
                       WHEN ${inputs.min_age.value} <> 0
                        AND ${inputs.max_age.value} = 120
                       THEN 119
@@ -653,31 +653,59 @@ prior_years AS (
       )
     GROUP BY MODE
 ),
--- Average of those three prior years
+-- 3-year integer sum (sum3) and the unrounded average
 prior_avg AS (
     SELECT
       MODE,
       CASE WHEN (SELECT is_valid FROM date_info) = 1
-           THEN (
-             COALESCE(MAX(CASE WHEN yr_offset=1 THEN sum_count END),0) +
-             COALESCE(MAX(CASE WHEN yr_offset=2 THEN sum_count END),0) +
-             COALESCE(MAX(CASE WHEN yr_offset=3 THEN sum_count END),0)
-           ) / 3.0
+           THEN (COALESCE(MAX(CASE WHEN yr_offset=1 THEN sum_count END),0) +
+                 COALESCE(MAX(CASE WHEN yr_offset=2 THEN sum_count END),0) +
+                 COALESCE(MAX(CASE WHEN yr_offset=3 THEN sum_count END),0))
+           ELSE NULL
+      END AS sum3,
+      CASE WHEN (SELECT is_valid FROM date_info) = 1
+           THEN (COALESCE(MAX(CASE WHEN yr_offset=1 THEN sum_count END),0) +
+                 COALESCE(MAX(CASE WHEN yr_offset=2 THEN sum_count END),0) +
+                 COALESCE(MAX(CASE WHEN yr_offset=3 THEN sum_count END),0)) / 3.0
            ELSE NULL
       END AS avg_sum_count
     FROM prior_years
     GROUP BY MODE
 ),
--- Totals 
+-- Largest-remainder (Hamilton) ranking using the EXACT integer remainder MOD(sum3,3)
+prior_avg_alloc AS (
+    SELECT
+      MODE,
+      sum3,
+      avg_sum_count,
+      FLOOR(sum3 / 3.0)::BIGINT AS floor_val,
+      ROW_NUMBER() OVER (
+        ORDER BY
+          (MODE = 'Bicyclist') ASC,   -- Bicyclist queued last; gets a unit only if unavoidable
+          MOD(sum3, 3) DESC,          -- largest remainder first (exact integer, no float ties)
+          sum3 DESC,                  -- tie-break: biggest value wins
+          MODE                        -- deterministic final tie-break
+      ) AS rn,
+      ( ROUND(SUM(sum3) OVER () / 3.0)
+        - SUM(FLOOR(sum3 / 3.0)) OVER () )::BIGINT AS deficit
+    FROM prior_avg
+    WHERE sum3 IS NOT NULL
+),
+-- Final integer allocation: floor + 1 for the top `deficit` ranked rows
+prior_avg_int AS (
+    SELECT
+      MODE,
+      (floor_val + CASE WHEN rn <= deficit THEN 1 ELSE 0 END)::BIGINT AS avg_int
+    FROM prior_avg_alloc
+),
+-- Totals (prior total = sum of the integer allocations, so the Total row reconciles)
 total_counts AS (
     SELECT
-      SUM(cp.sum_count) AS total_current_period,
+      (SELECT SUM(sum_count) FROM current_period) AS total_current_period,
       CASE WHEN (SELECT is_valid FROM date_info) = 1
-           THEN SUM(ROUND(pa.avg_sum_count, 2))
+           THEN (SELECT SUM(avg_int) FROM prior_avg_int)
            ELSE NULL
       END AS total_prior_avg
-    FROM current_period cp
-    FULL JOIN prior_avg pa USING (MODE)
 ),
 -- Prior period label
 prior_period_label AS (
@@ -700,39 +728,33 @@ prior_period_label AS (
 SELECT
   mas.MODE,
   COALESCE(cp.sum_count, 0) AS current_period_sum,
-  ROUND(COALESCE(pa.avg_sum_count, 0), 2) AS prior_3yr_avg_sum,
-  ROUND(
-      COALESCE(cp.sum_count, 0) - COALESCE(pa.avg_sum_count, 0),
-      2
-  ) AS difference,
+  COALESCE(pai.avg_int, 0)  AS prior_3yr_avg_sum,
+  COALESCE(cp.sum_count, 0) - COALESCE(pai.avg_int, 0) AS difference,
   CASE
     WHEN COALESCE(cp.sum_count, 0) = 0
-      OR COALESCE(pa.avg_sum_count, 0) = 0
+      OR COALESCE(pai.avg_int, 0) = 0
     THEN NULL
-    ELSE
-      (COALESCE(cp.sum_count, 0) - ROUND(pa.avg_sum_count, 2))
-      / ROUND(pa.avg_sum_count, 2)
+    ELSE (COALESCE(cp.sum_count, 0) - pai.avg_int)::DOUBLE / pai.avg_int
   END AS percentage_change,
-  (SELECT date_range_label   FROM date_info)        AS current_period_range,
+  (SELECT date_range_label   FROM date_info)          AS current_period_range,
   (SELECT label              FROM prior_period_label) AS prior_period_range,
-  (SELECT current_year_label FROM date_info)        AS current_year_label,
-  (SELECT prior_year_label   FROM date_info)        AS prior_year_label,
+  (SELECT current_year_label FROM date_info)          AS current_year_label,
+  (SELECT prior_year_label   FROM date_info)          AS prior_year_label,
   CASE
     WHEN COALESCE(total_current_period, 0) = 0
       OR COALESCE(total_prior_avg, 0) = 0
     THEN NULL
-    ELSE
-      (ROUND(total_current_period, 1) - ROUND(total_prior_avg, 1))
-      / ROUND(total_prior_avg, 1)
+    ELSE (total_current_period - total_prior_avg)::DOUBLE / total_prior_avg
   END AS total_percentage_change,
-  COALESCE(cp.sum_count, 0) / NULLIF(total_current_period, 0) AS current_mode_percentage,
+  COALESCE(cp.sum_count, 0)::DOUBLE / NULLIF(total_current_period, 0) AS current_mode_percentage,
   CASE WHEN total_prior_avg IS NOT NULL
-       THEN pa.avg_sum_count / NULLIF(total_prior_avg, 0)
+       THEN COALESCE(pai.avg_int, 0)::DOUBLE / NULLIF(total_prior_avg, 0)
        ELSE NULL
   END AS prior_mode_percentage
 FROM modes_and_severities mas
-LEFT JOIN current_period cp USING (MODE)
-LEFT JOIN prior_avg      pa USING (MODE),
+LEFT JOIN current_period cp  USING (MODE)
+LEFT JOIN prior_avg      pa  USING (MODE)
+LEFT JOIN prior_avg_int  pai USING (MODE),
      total_counts;
 ```
 
@@ -886,32 +908,29 @@ LEFT JOIN prior_period   pp USING (SEVERITY),
 ```
 
 ```sql period_comp_severity_3ytd
-WITH 
--- Normalize the user-provided dates to an exclusive end_date (half-open window)
+WITH
 report_date_range AS (
     SELECT
-      CASE 
-        WHEN '${inputs.date_range.end}'::DATE 
+      CASE
+        WHEN '${inputs.date_range.end}'::DATE
              >= (SELECT MAX(LAST_RECORD) FROM crashes.crashes)::DATE
         THEN (SELECT MAX(LAST_RECORD) FROM crashes.crashes)::DATE + INTERVAL '1 day'
         ELSE '${inputs.date_range.end}'::DATE + INTERVAL '1 day'
       END   AS end_date,
       '${inputs.date_range.start}'::DATE AS start_date
 ),
--- Validation flag: 1 = valid, 0 = invalid
 validate_range AS (
     SELECT
       start_date,
       end_date,
-      CASE 
+      CASE
         WHEN end_date > start_date + INTERVAL '1 year' THEN 0
         WHEN EXTRACT(YEAR FROM start_date) <> EXTRACT(YEAR FROM end_date - INTERVAL '1 day')
-        THEN 0
+          THEN 0
         ELSE 1
       END AS is_valid
     FROM report_date_range
 ),
--- Date info with full-year/YTD detection and compact formatting
 date_info AS (
     SELECT
       r.start_date,
@@ -925,9 +944,6 @@ date_info AS (
         THEN '''' || RIGHT(CAST(EXTRACT(YEAR FROM (r.end_date - INTERVAL '1 day')) AS VARCHAR), 2) || ' YTD'
         ELSE strftime(r.start_date, '%m/%d/%y') || '-' || strftime(r.end_date - INTERVAL '1 day', '%m/%d/%y')
       END AS date_range_label,
-      '''' || RIGHT(CAST(EXTRACT(YEAR FROM r.start_date) AS VARCHAR), 2)      AS current_year_label,
-      '''' || RIGHT(CAST(EXTRACT(YEAR FROM r.start_date) - 1 AS VARCHAR), 2)  AS prior_year_label,
-      (r.end_date - r.start_date) AS date_range_days,
       v.is_valid,
       CASE
         WHEN r.start_date = DATE_TRUNC('year', r.start_date)
@@ -942,9 +958,8 @@ severities AS (
     FROM crashes.crashes
     WHERE SEVERITY IN ${inputs.multi_severity.value}
 ),
--- Current period sum by severity
 current_period AS (
-    SELECT 
+    SELECT
       SEVERITY,
       SUM(COUNT) AS sum_count
     FROM crashes.crashes
@@ -954,7 +969,7 @@ current_period AS (
       AND REPORTDATE <  (SELECT end_date   FROM date_info)
       AND AGE BETWEEN ${inputs.min_age.value}
                   AND (
-                    CASE 
+                    CASE
                       WHEN ${inputs.min_age.value} <> 0
                        AND ${inputs.max_age.value} = 120
                       THEN 119
@@ -963,7 +978,6 @@ current_period AS (
                   )
     GROUP BY SEVERITY
 ),
--- Three prior 1-year slices (T-1, T-2, T-3)
 prior_years AS (
     SELECT SEVERITY, SUM(COUNT) AS sum_count, 1 AS yr_offset
     FROM crashes.crashes
@@ -972,15 +986,10 @@ prior_years AS (
       AND SEVERITY IN ${inputs.multi_severity.value}
       AND REPORTDATE >= di.start_date - INTERVAL '1 year'
       AND REPORTDATE <  di.end_date   - INTERVAL '1 year'
-      AND AGE BETWEEN ${inputs.min_age.value}
-                  AND (
-                    CASE 
-                      WHEN ${inputs.min_age.value} <> 0
-                       AND ${inputs.max_age.value} = 120
-                      THEN 119
-                      ELSE ${inputs.max_age.value}
-                    END
-                  )
+      AND AGE BETWEEN ${inputs.min_age.value} AND (
+        CASE WHEN ${inputs.min_age.value} <> 0 AND ${inputs.max_age.value} = 120
+             THEN 119 ELSE ${inputs.max_age.value} END
+      )
     GROUP BY SEVERITY
     UNION ALL
     SELECT SEVERITY, SUM(COUNT) AS sum_count, 2 AS yr_offset
@@ -990,15 +999,10 @@ prior_years AS (
       AND SEVERITY IN ${inputs.multi_severity.value}
       AND REPORTDATE >= di.start_date - INTERVAL '2 year'
       AND REPORTDATE <  di.end_date   - INTERVAL '2 year'
-      AND AGE BETWEEN ${inputs.min_age.value}
-                  AND (
-                    CASE 
-                      WHEN ${inputs.min_age.value} <> 0
-                       AND ${inputs.max_age.value} = 120
-                      THEN 119
-                      ELSE ${inputs.max_age.value}
-                    END
-                  )
+      AND AGE BETWEEN ${inputs.min_age.value} AND (
+        CASE WHEN ${inputs.min_age.value} <> 0 AND ${inputs.max_age.value} = 120
+             THEN 119 ELSE ${inputs.max_age.value} END
+      )
     GROUP BY SEVERITY
     UNION ALL
     SELECT SEVERITY, SUM(COUNT) AS sum_count, 3 AS yr_offset
@@ -1008,44 +1012,61 @@ prior_years AS (
       AND SEVERITY IN ${inputs.multi_severity.value}
       AND REPORTDATE >= di.start_date - INTERVAL '3 year'
       AND REPORTDATE <  di.end_date   - INTERVAL '3 year'
-      AND AGE BETWEEN ${inputs.min_age.value}
-                  AND (
-                    CASE 
-                      WHEN ${inputs.min_age.value} <> 0
-                       AND ${inputs.max_age.value} = 120
-                      THEN 119
-                      ELSE ${inputs.max_age.value}
-                    END
-                  )
+      AND AGE BETWEEN ${inputs.min_age.value} AND (
+        CASE WHEN ${inputs.min_age.value} <> 0 AND ${inputs.max_age.value} = 120
+             THEN 119 ELSE ${inputs.max_age.value} END
+      )
     GROUP BY SEVERITY
 ),
--- Average across T-1, T-2, T-3
 prior_avg AS (
     SELECT
       SEVERITY,
       CASE WHEN (SELECT is_valid FROM date_info) = 1
-           THEN (
-             COALESCE(MAX(CASE WHEN yr_offset=1 THEN sum_count END),0) +
-             COALESCE(MAX(CASE WHEN yr_offset=2 THEN sum_count END),0) +
-             COALESCE(MAX(CASE WHEN yr_offset=3 THEN sum_count END),0)
-           ) / 3.0
+           THEN (COALESCE(MAX(CASE WHEN yr_offset=1 THEN sum_count END),0) +
+                 COALESCE(MAX(CASE WHEN yr_offset=2 THEN sum_count END),0) +
+                 COALESCE(MAX(CASE WHEN yr_offset=3 THEN sum_count END),0))
+           ELSE NULL
+      END AS sum3,
+      CASE WHEN (SELECT is_valid FROM date_info) = 1
+           THEN (COALESCE(MAX(CASE WHEN yr_offset=1 THEN sum_count END),0) +
+                 COALESCE(MAX(CASE WHEN yr_offset=2 THEN sum_count END),0) +
+                 COALESCE(MAX(CASE WHEN yr_offset=3 THEN sum_count END),0)) / 3.0
            ELSE NULL
       END AS avg_sum_count
     FROM prior_years
     GROUP BY SEVERITY
 ),
--- Totals 
+prior_avg_alloc AS (
+    SELECT
+      SEVERITY,
+      sum3,
+      avg_sum_count,
+      FLOOR(sum3 / 3.0)::BIGINT AS floor_val,
+      ROW_NUMBER() OVER (
+        ORDER BY
+          MOD(sum3, 3) DESC,   -- largest remainder first (exact integer)
+          sum3 DESC,           -- tie-break: biggest value wins
+          SEVERITY             -- deterministic final tie-break
+      ) AS rn,
+      ( ROUND(SUM(sum3) OVER () / 3.0)
+        - SUM(FLOOR(sum3 / 3.0)) OVER () )::BIGINT AS deficit
+    FROM prior_avg
+    WHERE sum3 IS NOT NULL
+),
+prior_avg_int AS (
+    SELECT
+      SEVERITY,
+      (floor_val + CASE WHEN rn <= deficit THEN 1 ELSE 0 END)::BIGINT AS avg_int
+    FROM prior_avg_alloc
+),
 total_counts AS (
     SELECT
-      SUM(cp.sum_count) AS total_current_period,
+      (SELECT SUM(sum_count) FROM current_period) AS total_current_period,
       CASE WHEN (SELECT is_valid FROM date_info) = 1
-           THEN SUM(ROUND(pa.avg_sum_count, 2))
+           THEN (SELECT SUM(avg_int) FROM prior_avg_int)
            ELSE NULL
       END AS total_prior_avg
-    FROM current_period cp
-    FULL JOIN prior_avg pa USING (SEVERITY)
 ),
--- Prior period label
 prior_period_label AS (
     SELECT
       CASE
@@ -1063,21 +1084,16 @@ prior_period_label AS (
       END AS label
     FROM date_info
 )
-SELECT 
+SELECT
     s.SEVERITY,
-    COALESCE(cp.sum_count, 0) AS current_period_sum, 
-    ROUND(pa.avg_sum_count, 2) AS prior_3yr_avg_sum, 
-    CASE WHEN pa.avg_sum_count IS NOT NULL
-         THEN ROUND(COALESCE(cp.sum_count, 0) - pa.avg_sum_count, 2)
-         ELSE NULL
-    END AS difference,
+    COALESCE(cp.sum_count, 0) AS current_period_sum,
+    COALESCE(pai.avg_int, 0)  AS prior_3yr_avg_sum,
+    COALESCE(cp.sum_count, 0) - COALESCE(pai.avg_int, 0) AS difference,
     CASE
         WHEN COALESCE(cp.sum_count, 0) = 0
-          OR COALESCE(pa.avg_sum_count, 0) = 0
+          OR COALESCE(pai.avg_int, 0) = 0
         THEN NULL
-        ELSE
-          (COALESCE(cp.sum_count, 0) - ROUND(pa.avg_sum_count, 1))
-          / ROUND(pa.avg_sum_count, 1)
+        ELSE (COALESCE(cp.sum_count, 0) - pai.avg_int)::DOUBLE / pai.avg_int
     END AS percentage_change,
     (SELECT date_range_label FROM date_info) AS current_period_range,
     (SELECT label FROM prior_period_label)   AS prior_period_range,
@@ -1085,19 +1101,17 @@ SELECT
         WHEN COALESCE(total_current_period, 0) = 0
           OR COALESCE(total_prior_avg, 0) = 0
         THEN NULL
-        ELSE
-          (ROUND(total_current_period, 1) - ROUND(total_prior_avg, 1))
-          / ROUND(total_prior_avg, 1)
+        ELSE (total_current_period - total_prior_avg)::DOUBLE / total_prior_avg
     END AS total_percentage_change,
-    COALESCE(cp.sum_count, 0) / NULLIF(total_current_period, 0) AS current_severity_percentage,
+    COALESCE(cp.sum_count, 0)::DOUBLE / NULLIF(total_current_period, 0) AS current_severity_percentage,
     CASE WHEN total_prior_avg IS NOT NULL
-         THEN pa.avg_sum_count / NULLIF(total_prior_avg, 0)
+         THEN COALESCE(pai.avg_int, 0)::DOUBLE / NULLIF(total_prior_avg, 0)
          ELSE NULL
     END AS prior_severity_percentage
-FROM 
-    severities s
-LEFT JOIN current_period cp ON s.SEVERITY = cp.SEVERITY
-LEFT JOIN prior_avg pa      ON s.SEVERITY = pa.SEVERITY,
+FROM severities s
+LEFT JOIN current_period cp  ON s.SEVERITY = cp.SEVERITY
+LEFT JOIN prior_avg      pa  ON s.SEVERITY = pa.SEVERITY
+LEFT JOIN prior_avg_int  pai ON s.SEVERITY = pai.SEVERITY,
     total_counts;
 ```
 
@@ -1636,7 +1650,7 @@ prior_avg AS (
              COALESCE(MAX(CASE WHEN yr_offset = 2 THEN sum_count END), 0) +
              COALESCE(MAX(CASE WHEN yr_offset = 3 THEN sum_count END), 0)
             ) / 3.0
-        , 1) AS prior_3yr_avg_sum
+        , 0) AS prior_3yr_avg_sum
     FROM prior_years
 )
 SELECT
@@ -1854,10 +1868,11 @@ prior_years AS (
 -- Average of the three prior YTDs
 prior_avg AS (
     SELECT
+        ROUND(
         (COALESCE(MAX(CASE WHEN yr_offset = 1 THEN sum_count END), 0) +
          COALESCE(MAX(CASE WHEN yr_offset = 2 THEN sum_count END), 0) +
          COALESCE(MAX(CASE WHEN yr_offset = 3 THEN sum_count END), 0)
-        ) / 3.0 AS prior_3yr_avg_sum
+        ) / 3.0, 0) AS prior_3yr_avg_sum
     FROM prior_years
 )
 SELECT
@@ -2019,8 +2034,8 @@ defaultValue={
         <DataTable data={period_comp_mode_3ytd} totalRow sort="current_period_sum desc" wrapTitles rowShading title="Year Over Year Comparison of {`${severity_selection[0].SEVERITY_SELECTION}`} by Road User">
           <Column id="MODE" title="Road User" description="*Fatal Only" wrap=true totalAgg="Total"/>
           <Column id="current_period_sum" title="{period_comp_mode_3ytd[0].current_period_range}"/>
-          <Column id="prior_3yr_avg_sum" fmt="#,##0.0" description="Average counts are rounded to simplify reporting." title="{period_comp_mode_3ytd[0].prior_period_range}" />
-          <Column id="difference" contentType="delta" fmt="#,##0.0" downIsGood title="Diff"/>
+          <Column id="prior_3yr_avg_sum" fmt="#,##0" description="Average counts are rounded using largest remainder (Hamilton) method to simplify reporting." title="{period_comp_mode_3ytd[0].prior_period_range}" />
+          <Column id="difference" contentType="delta" fmt="#,##0" downIsGood title="Diff"/>
           <Column id="percentage_change" fmt="pct0" title="% Diff" totalAgg={period_comp_mode_3ytd[0].total_percentage_change} totalFmt="pct0"/>
         </DataTable>
 
@@ -2059,8 +2074,8 @@ defaultValue={
         <DataTable data={period_comp_severity_3ytd} totalRow=true sort="current_period_sum desc" wrapTitles=true rowShading=true title="Year Over Year Comparison of {`${severity_selection[0].SEVERITY_SELECTION}`} for All Road Users">
           <Column id=SEVERITY title=Severity wrap=true totalAgg="Total"/>
           <Column id=current_period_sum title="{period_comp_severity_3ytd[0].current_period_range}" />
-          <Column id=prior_3yr_avg_sum fmt='#,##0.0' description="Average counts are rounded to simplify reporting." title="{period_comp_severity_3ytd[0].prior_period_range}" />
-          <Column id=difference contentType=delta fmt='#,##0.0' downIsGood=True title="Diff"/>
+          <Column id=prior_3yr_avg_sum fmt='#,##0' description="Average counts are rounded using largest remainder (Hamilton) method to simplify reporting." title="{period_comp_severity_3ytd[0].prior_period_range}" />
+          <Column id=difference contentType=delta fmt='#,##0' downIsGood=True title="Diff"/>
           <Column id=percentage_change fmt="pct0" title="% Diff" totalAgg={period_comp_severity_3ytd[0].total_percentage_change} totalFmt="pct0" /> 
         </DataTable>
 
