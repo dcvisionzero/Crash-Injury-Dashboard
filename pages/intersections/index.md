@@ -5,7 +5,7 @@ queries:
    - age_range: age_range.sql
    - has_fatal: has_fatal.sql
    - has_major: has_major.sql
-sidebar_link: false
+sidebar_position: 4
 ---
 
 ```sql unique_mode
@@ -233,12 +233,22 @@ SELECT
     CASE 
         WHEN ci.INTERSECTIONKEY IS NOT NULL THEN
             '/intersections/' || ui.INTERSECTIONKEY
-            || '?start='    || '${inputs.date_range.start}'
-            || '&end='      || '${inputs.date_range.end}'
-            || '&severity=' || array_to_string(list_value${inputs.multi_severity.value}, ',')
-            || '&mode='     || array_to_string(list_value${inputs.multi_mode_dd.value}, ',')
-            || '&min_age='  || '${inputs.min_age.value}'
-            || '&max_age='  || '${inputs.max_age.value}'
+            -- Every input below is either inside IN (...) or wrapped in TRY_CAST,
+            -- so this stays valid during the build pass when Evidence substitutes
+            -- "(SELECT NULL WHERE 0)" for inputs that have not been set yet.
+            -- Splicing an input straight into a function argument (as list_value
+            -- did) is a parser error on that pass, which kills the link column and
+            -- stops the [INTERSECTIONKEY] pages from being crawled and prerendered.
+            || '?start='    || COALESCE(TRY_CAST('${inputs.date_range.start}' AS DATE)::VARCHAR, '')
+            || '&end='      || COALESCE(TRY_CAST('${inputs.date_range.end}' AS DATE)::VARCHAR, '')
+            || '&severity=' || COALESCE((SELECT string_agg(DISTINCT s.SEVERITY, ',')
+                                         FROM crashes.crashes s
+                                         WHERE s.SEVERITY IN ${inputs.multi_severity.value}), '')
+            || '&mode='     || COALESCE((SELECT string_agg(DISTINCT m.MODE, ',')
+                                         FROM crashes.crashes m
+                                         WHERE m.MODE IN ${inputs.multi_mode_dd.value}), '')
+            || '&min_age='  || COALESCE(TRY_CAST('${inputs.min_age.value}' AS INTEGER)::VARCHAR, '')
+            || '&max_age='  || COALESCE(TRY_CAST('${inputs.max_age.value}' AS INTEGER)::VARCHAR, '')
     END AS link
 FROM unique_intx ui
 LEFT JOIN current_period cp ON ui.INTERSECTIONKEY = cp.INTERSECTIONKEY
@@ -542,19 +552,19 @@ defaultValue={
         >
         <Areas data={unique_hin} geoJsonUrl='https://raw.githubusercontent.com/rafaelmorenoco/Crash-Injury-Dashboard-Frontend/main/static/High_Injury_Network.geojson' geoId=GIS_ID areaCol=GIS_ID borderColor=#9d00ff color=#1C00ff00
             tooltip={[
-                {id: 'ROUTENAME', showColumnName:false},
+                {id: 'ROUTENAME'},
                 {id: 'Tier'}
             ]}
         />
         <Areas data={intersection_map} name=intx_select geoJsonUrl='https://raw.githubusercontent.com/rafaelmorenoco/Crash-Injury-Dashboard-Frontend/main/static/Intersection_Points_buffers.geojson' geoId=INTERSECTIONKEY areaCol=INTERSECTIONKEY value=count min=0 opacity=0.7 borderWidth=0.5 borderColor='#A9A9A9' ignoreZoom=true
             tooltip={[
-                {id:'INTERSECTION_NAME', valueClass:'text-l font-semibold', showColumnName:false},
+                {id:'INTERSECTION_NAME', title:"Intersection", valueClass: 'text-base font-semibold', fieldClass: 'text-base font-semibold'},
                 {id:'count'}
             ]}
         />
-        <Points data={intersection_points} name=intx_select_pt lat=LATITUDE long=LONGITUDE value=count min=0 opacity=0.5 ignoreZoom=true legend=false
+        <Points data={intersection_points} name=intx_select_pt lat=LATITUDE long=LONGITUDE value=count min=0 opacity=0.5 ignoreZoom=true
             tooltip={[
-                {id:'INTERSECTION_NAME', valueClass:'text-l font-semibold', showColumnName:false},
+                {id:'INTERSECTION_NAME', title:"Intersection", valueClass: 'text-base font-semibold', fieldClass: 'text-base font-semibold'},
                 {id:'count'}
             ]}
         />
@@ -565,6 +575,12 @@ defaultValue={
         <Note>
             The shaded circles represent 100‑foot buffers around each intersection. The map displays only those intersections that have at least one injury crash under the selected filters.
         </Note>
+        <DataTable data={intx_vs_overall} rows=all rowShading=true title="Injury Crashes at Intersections vs. Overall">
+            <Column id=period title="Period"/>
+            <Column id=in_intersection title="In Intersection" fmt='#,##0'/>
+            <Column id=overall_count title="Overall" fmt='#,##0'/>
+            <Column id=pct_in_intersection title="% in Intersection" fmt='pct0'/>
+        </DataTable>
     </Group>
     <Group>
         <div style="font-size: 14px;">
@@ -579,15 +595,8 @@ defaultValue={
             <Column id=difference title="Diff" contentType=delta downIsGood=True />
             <Column id=percentage_change fmt='pct0' title="% Diff" /> 
         </DataTable>
-        <DataTable data={intx_vs_overall} rows=all rowShading=true title="Injury Crashes at Intersections vs. Overall">
-            <Column id=period title="Period"/>
-            <Column id=in_intersection title="In Intersection" fmt='#,##0'/>
-            <Column id=overall_count title="Overall" fmt='#,##0'/>
-            <Column id=pct_in_intersection title="% in Intersection" fmt='pct0'/>
-        </DataTable>
+        <Note>
+            The latest crash record in the dataset is from <Value data={last_record} column="latest_record"/> and the data was last updated on <Value data={last_record} column="latest_update"/> hrs. This lag factors into prior period comparisons. The maximum comparison period is 5 years. Crashes are assigned to the nearest intersection within 100 ft; crashes farther than that (mid-block) are excluded. Rows with at least one crash on record link to an intersection detail page.
+        </Note>
     </Group>
 </Grid>
-
-<Note>
-    The latest crash record in the dataset is from <Value data={last_record} column="latest_record"/> and the data was last updated on <Value data={last_record} column="latest_update"/> hrs. This lag factors into prior period comparisons. The maximum comparison period is 5 years. Crashes are assigned to the nearest intersection within 100 ft; crashes farther than that (mid-block) are excluded. Rows with at least one crash on record link to an intersection detail page.
-</Note>
