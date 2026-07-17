@@ -838,12 +838,7 @@ defaultValue={
             <Column id=difference title="Diff" contentType=delta downIsGood=True />
             <Column id=percentage_change fmt='pct0' title="% Diff" />
         </DataTable>
-        {#if $page.url.searchParams.get('intx')}
-        <div style="margin: 4px 0 8px 0; font-size: 12px;">
-            <a href="/intersections">← Back to the top 10</a>
-        </div>
-        {/if}
-        {:else}
+        {:else if top10_intx.length > 0}
         <DataTable data={top10_intx} link=link search=false rows=10 sort="current_period_sum desc" title="Top 10 Intersections: {`${mode_severity_selection[0].SEVERITY_SELECTION}`} for {`${mode_severity_selection[0].MODE_SELECTION}`}" wrapTitles=true rowShading=true>
             <Column id=INTERSECTION_NAME title="Intersection" wrap=true/>
             <Column id=current_period_sum title={`${top10_intx[0].current_period_range}`} />
@@ -852,7 +847,7 @@ defaultValue={
             <Column id=percentage_change fmt='pct0' title="% Diff" />
         </DataTable>
         <Note>
-            Click a row to zoom into that intersection, or use the search above.
+            Click a row to zoom into that intersection. Use your browser's Back button to return.
         </Note>
         {/if}
 
