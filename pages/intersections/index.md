@@ -85,8 +85,6 @@ WHERE INTERSECTIONKEY IS NOT NULL
             WHEN '${inputs.roadsegment_a.value}' <> 'All Streets'
               OR '${inputs.roadsegment_b.value}' <> 'All Streets'
                 THEN TRUE
-            WHEN length('${$page.url.searchParams.get('intx') ?? ''}') = 32
-                THEN INTERSECTIONKEY = '${$page.url.searchParams.get('intx') ?? ''}'
             WHEN length('${inputs.intx_select_pt.INTERSECTIONKEY}') = 32
                 THEN INTERSECTIONKEY = '${inputs.intx_select_pt.INTERSECTIONKEY}'
             WHEN length('${inputs.intx_select.INTERSECTIONKEY}') = 32
@@ -263,13 +261,26 @@ ORDER BY current_period_sum DESC, INTERSECTIONKEY
 ```sql top10_intx
 -- The clickable leaderboard: top 10 across the WHOLE city for the current
 -- severity/road-user/date/age filters. Deliberately NOT narrowed by the street
--- dropdowns, the map, or ?intx= -- it is the thing you pick from.
--- The link points back at THIS page with ?intx=<key>. Because it is the same
--- route, SvelteKit navigates client-side: no page is prerendered, every
--- intersection works, and the filters above stay exactly as they were.
+-- dropdowns or the map -- it is the thing you pick from.
+-- The link points at the detail ROUTE (not this page: a self-link breaks the
+-- prerender crawl) and carries the current filters in the query string.
+-- Only these 10 get prerendered; every other intersection still works because
+-- an in-app click renders client-side. Sharing a link to a non-prerendered one
+-- 404s -- same tradeoff the fatalities page has always had.
 SELECT
     *,
-    '/intersections?intx=' || INTERSECTIONKEY AS link
+    '/intersections/' || INTERSECTIONKEY
+        || '?start='    || COALESCE(TRY_CAST('${inputs.date_range.start}' AS DATE)::VARCHAR, '')
+        || '&end='      || COALESCE(TRY_CAST('${inputs.date_range.end}' AS DATE)::VARCHAR, '')
+        || '&severity=' || COALESCE((SELECT string_agg(DISTINCT sv.SEVERITY, ',')
+                                     FROM crashes.crashes sv
+                                     WHERE sv.SEVERITY IN ${inputs.multi_severity.value}), '')
+        || '&mode='     || COALESCE((SELECT string_agg(DISTINCT md.MODE, ',')
+                                     FROM crashes.crashes md
+                                     WHERE md.MODE IN ${inputs.multi_mode_dd.value}), '')
+        || '&min_age='  || COALESCE(TRY_CAST('${inputs.min_age.value}' AS INTEGER)::VARCHAR, '')
+        || '&max_age='  || COALESCE(TRY_CAST('${inputs.max_age.value}' AS INTEGER)::VARCHAR, '')
+        AS link
 FROM ${period_comp_all}
 ORDER BY current_period_sum DESC, INTERSECTIONKEY
 LIMIT 10
