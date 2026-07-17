@@ -85,6 +85,8 @@ WHERE INTERSECTIONKEY IS NOT NULL
             WHEN '${inputs.roadsegment_a.value}' <> 'All Streets'
               OR '${inputs.roadsegment_b.value}' <> 'All Streets'
                 THEN TRUE
+            WHEN length('${$page.url.searchParams.get('intx') ?? ''}') = 32
+                THEN INTERSECTIONKEY = '${$page.url.searchParams.get('intx') ?? ''}'
             WHEN length('${inputs.intx_select_pt.INTERSECTIONKEY}') = 32
                 THEN INTERSECTIONKEY = '${inputs.intx_select_pt.INTERSECTIONKEY}'
             WHEN length('${inputs.intx_select.INTERSECTIONKEY}') = 32
@@ -93,7 +95,10 @@ WHERE INTERSECTIONKEY IS NOT NULL
          END)
 ```
 
-```sql period_comp_intx
+```sql period_comp_all
+-- The full YoY computation over EVERY intersection, unscoped. Two queries read
+-- it: top10_intx (the clickable leaderboard) and period_comp_intx (this page's
+-- current scope). Computing it once keeps them from ever disagreeing.
 WITH 
     report_date_range AS (
         SELECT
@@ -142,7 +147,9 @@ WITH
         FROM date_info
     ),
     unique_intx AS (
-        SELECT INTERSECTIONKEY, INTERSECTION_NAME FROM ${filtered_intx}
+        SELECT INTERSECTIONKEY, canonical_name AS INTERSECTION_NAME
+        FROM intersections.intersections_unique
+        WHERE INTERSECTIONKEY IS NOT NULL
     ),
     current_period AS (
         SELECT 
@@ -241,6 +248,31 @@ FROM unique_intx ui
 LEFT JOIN current_period cp ON ui.INTERSECTIONKEY = cp.INTERSECTIONKEY
 LEFT JOIN prior_period pp ON ui.INTERSECTIONKEY = pp.INTERSECTIONKEY
 ORDER BY current_period_sum DESC, ui.INTERSECTIONKEY
+```
+
+```sql period_comp_intx
+-- The YoY numbers narrowed to whatever is currently in scope. When nothing is
+-- selected this is every intersection; once a street pair, a map click, or a
+-- table row (?intx=) narrows it, this collapses -- usually to a single row.
+SELECT *
+FROM ${period_comp_all}
+WHERE INTERSECTIONKEY IN (SELECT INTERSECTIONKEY FROM ${filtered_intx})
+ORDER BY current_period_sum DESC, INTERSECTIONKEY
+```
+
+```sql top10_intx
+-- The clickable leaderboard: top 10 across the WHOLE city for the current
+-- severity/road-user/date/age filters. Deliberately NOT narrowed by the street
+-- dropdowns, the map, or ?intx= -- it is the thing you pick from.
+-- The link points back at THIS page with ?intx=<key>. Because it is the same
+-- route, SvelteKit navigates client-side: no page is prerendered, every
+-- intersection works, and the filters above stay exactly as they were.
+SELECT
+    *,
+    '/intersections?intx=' || INTERSECTIONKEY AS link
+FROM ${period_comp_all}
+ORDER BY current_period_sum DESC, INTERSECTIONKEY
+LIMIT 10
 ```
 
 ```sql mode_severity_selection
@@ -745,7 +777,7 @@ defaultValue={
         <div style="font-size: 14px;">
             <b>{`${mode_severity_selection[0].SEVERITY_SELECTION}`} for {`${mode_severity_selection[0].MODE_SELECTION}`} by Intersection ({`${period_comp_intx[0].current_period_range}`})</b>
             <span style="display:block; font-size: 12px; color: #6c757d;">
-                Select an intersection on the map for details. Refresh the page to reset.
+                Select an intersection on the map for details
             </span>
         </div>
 
@@ -792,19 +824,37 @@ defaultValue={
             <div style="font-size: 14px;">
                 <b>Start Here: Intersection Search</b>
                 <span style="display:block; font-size: 12px; color: #6c757d;">
-                    Choose a street (↓) and the intersecting street (↓)
+                    Choose a street (↓) and the intersecting street (↓). Pick "All Streets" to reset.
                 </span>
             </div>
             <Dropdown data={roadsegment_dropdown_a} name=roadsegment_a value=road title="①" defaultValue="All Streets" order="sort_order asc, road asc"/>
             <Dropdown data={roadsegment_dropdown_b} name=roadsegment_b value=road title="②" defaultValue="All Streets" order="sort_order asc, road asc"/>
         </Alert>
+        {#if selected_intx.length === 1}
         <DataTable data={period_comp_intx} search=false rows=10 sort="current_period_sum desc" title="Year Over Year Comparison of {`${mode_severity_selection[0].SEVERITY_SELECTION}`} for {`${mode_severity_selection[0].MODE_SELECTION}`} by Intersection" wrapTitles=true rowShading=true>
             <Column id=INTERSECTION_NAME title="Intersection" wrap=true/>
             <Column id=current_period_sum title={`${period_comp_intx[0].current_period_range}`} />
             <Column id=prior_period_sum title={`${period_comp_intx[0].prior_period_range}`}  />
             <Column id=difference title="Diff" contentType=delta downIsGood=True />
-            <Column id=percentage_change fmt='pct0' title="% Diff" /> 
+            <Column id=percentage_change fmt='pct0' title="% Diff" />
         </DataTable>
+        {#if $page.url.searchParams.get('intx')}
+        <div style="margin: 4px 0 8px 0; font-size: 12px;">
+            <a href="/intersections">← Back to the top 10</a>
+        </div>
+        {/if}
+        {:else}
+        <DataTable data={top10_intx} link=link search=false rows=10 sort="current_period_sum desc" title="Top 10 Intersections: {`${mode_severity_selection[0].SEVERITY_SELECTION}`} for {`${mode_severity_selection[0].MODE_SELECTION}`}" wrapTitles=true rowShading=true>
+            <Column id=INTERSECTION_NAME title="Intersection" wrap=true/>
+            <Column id=current_period_sum title={`${top10_intx[0].current_period_range}`} />
+            <Column id=prior_period_sum title={`${top10_intx[0].prior_period_range}`}  />
+            <Column id=difference title="Diff" contentType=delta downIsGood=True />
+            <Column id=percentage_change fmt='pct0' title="% Diff" />
+        </DataTable>
+        <Note>
+            Click a row to zoom into that intersection, or use the search above.
+        </Note>
+        {/if}
 
         {#if selected_intx.length === 1 && sel_severity.length > 0 && sel_mode.length > 0}
 
