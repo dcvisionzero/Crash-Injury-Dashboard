@@ -9,7 +9,7 @@ sidebar_position: 1
 ---
 
 ```sql fatality_with_link
-select *, '/memo/' || DeathCaseID as link
+select *, '/fatalities/' || DeathCaseID as link
 from ${fatality}
 ```
 
@@ -246,7 +246,7 @@ SELECT
         WHEN CAST(AGE AS INTEGER) = 120 THEN '-'
         ELSE CAST(CAST(AGE AS INTEGER) AS VARCHAR)
     END AS Age,
-    '/memo/' || DeathCaseID AS link
+    '/fatalities/' || DeathCaseID AS link
 FROM crashes.crashes
 WHERE replace(MODE, '*', '') IN ${inputs.multi_mode_dd.value}
 AND SEVERITY = 'Fatal'
