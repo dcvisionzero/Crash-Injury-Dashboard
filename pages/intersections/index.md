@@ -8,28 +8,6 @@ queries:
 sidebar_link: false
 ---
 
-<script>
-  // Evidence has no API for one input to write to another (Dropdown reads its
-  // initial state once, then owns $inputs[name]), so a map click cannot set the
-  // street dropdowns. Instead we latch the map's selection into a plain variable.
-  // It survives intersection_map reloading (which is what resets the map input
-  // when you change severity/road user/date), so the selection sticks.
-  // SQL blocks are compiled to JS template literals in component scope, so
-  // the map_key variable below is usable directly inside the SQL blocks.
-  // NOTE: must be `var`, not `let`. Evidence injects the compiled SQL blocks
-  // ABOVE this script, so a `let` here would be in the temporal dead zone and
-  // the whole page fails to construct. `var` hoists, so map_key is simply
-  // undefined until this line runs -- which the SQL below tolerates.
-  var map_key = '';
-
-  $: {
-    const pt = String(inputs?.intx_select_pt?.INTERSECTIONKEY ?? '');
-    const ar = String(inputs?.intx_select?.INTERSECTIONKEY ?? '');
-    const k = pt.length === 32 ? pt : (ar.length === 32 ? ar : '');
-    if (k) map_key = k;
-  }
-</script>
-
 ```sql unique_mode
 select 
     MODE
@@ -88,9 +66,9 @@ GROUP BY c.INTERSECTIONKEY
 --   * both dropdowns at 'All Streets' and no map selection -> every intersection
 --   * a street picked -> narrowed; both streets picked -> usually exactly one
 --   * a map click -> exactly one, but only while the dropdowns are untouched
--- map_key is latched in the <script> above so it survives filter changes; the
--- inputs.intx_select fallbacks below keep this working even if that latch does
--- not populate on this Evidence version.
+-- NOTE: a map click does not survive a change to severity/road user/date --
+-- reloading intersection_map resets Evidence's map input. Use the street
+-- dropdowns to pin a selection that sticks.
 SELECT
     INTERSECTIONKEY,
     canonical_name AS INTERSECTION_NAME
@@ -107,8 +85,6 @@ WHERE INTERSECTIONKEY IS NOT NULL
             WHEN '${inputs.roadsegment_a.value}' <> 'All Streets'
               OR '${inputs.roadsegment_b.value}' <> 'All Streets'
                 THEN TRUE
-            WHEN length('${map_key}') = 32
-                THEN INTERSECTIONKEY = '${map_key}'
             WHEN length('${inputs.intx_select_pt.INTERSECTIONKEY}') = 32
                 THEN INTERSECTIONKEY = '${inputs.intx_select_pt.INTERSECTIONKEY}'
             WHEN length('${inputs.intx_select.INTERSECTIONKEY}') = 32
@@ -766,9 +742,15 @@ defaultValue={
 
 <Grid cols=2>
     <Group>
+        <div style="font-size: 14px;">
+            <b>{`${mode_severity_selection[0].SEVERITY_SELECTION}`} for {`${mode_severity_selection[0].MODE_SELECTION}`} by Intersection ({`${period_comp_intx[0].current_period_range}`})</b>
+            <span style="display:block; font-size: 12px; color: #6c757d;">
+                Select an intersection on the map for details. Refresh the page to reset.
+            </span>
+        </div>
+
         <BaseMap
             height=450
-            title="{`${mode_severity_selection[0].SEVERITY_SELECTION}`} for {`${mode_severity_selection[0].MODE_SELECTION}`} by Intersection ({`${period_comp_intx[0].current_period_range}`})"
         >
         <Areas data={unique_hin} geoJsonUrl='https://raw.githubusercontent.com/rafaelmorenoco/Crash-Injury-Dashboard-Frontend/main/static/High_Injury_Network.geojson' geoId=GIS_ID areaCol=GIS_ID borderColor=#9d00ff color=#1C00ff00
             tooltip={[
@@ -789,15 +771,6 @@ defaultValue={
             ]}
         />
         </BaseMap>
-        {#if map_key && map_key.length === 32}
-        <div style="margin: 4px 0;">
-            <button
-                on:click={() => map_key = ''}
-                style="font-size:12px; padding:3px 9px; border:1px solid #d0d5dd; border-radius:5px; background:#fff; cursor:pointer;">
-                Clear map selection
-            </button>
-        </div>
-        {/if}
         <Note>
             The purple lines represent DC's High Injury Network.
         </Note>
@@ -815,14 +788,16 @@ defaultValue={
         </Note>
     </Group>
     <Group>
-        <div style="font-size: 14px;">
-            <b>Find a Specific Intersection</b>
-            <span style="display:block; font-size: 12px; color: #6c757d;">
-                Choose streets 1 and 2 to filter the table below, or select an intersection on the map for details.
-            </span>
-        </div>
-        <Dropdown data={roadsegment_dropdown_a} name=roadsegment_a value=road title="Street 1" defaultValue="All Streets"/>
-        <Dropdown data={roadsegment_dropdown_b} name=roadsegment_b value=road title="Street 2" defaultValue="All Streets"/>
+        <Alert status="positive">
+            <div style="font-size: 14px;">
+                <b>Start Here: Intersection Search</b>
+                <span style="display:block; font-size: 12px; color: #6c757d;">
+                    Choose a street (↓) and the intersecting street (↓)
+                </span>
+            </div>
+            <Dropdown data={roadsegment_dropdown_a} name=roadsegment_a value=road title="①" defaultValue="All Streets" order="sort_order asc, road asc"/>
+            <Dropdown data={roadsegment_dropdown_b} name=roadsegment_b value=road title="②" defaultValue="All Streets" order="sort_order asc, road asc"/>
+        </Alert>
         <DataTable data={period_comp_intx} search=false rows=10 sort="current_period_sum desc" title="Year Over Year Comparison of {`${mode_severity_selection[0].SEVERITY_SELECTION}`} for {`${mode_severity_selection[0].MODE_SELECTION}`} by Intersection" wrapTitles=true rowShading=true>
             <Column id=INTERSECTION_NAME title="Intersection" wrap=true/>
             <Column id=current_period_sum title={`${period_comp_intx[0].current_period_range}`} />
