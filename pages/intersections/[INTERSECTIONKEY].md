@@ -6,7 +6,7 @@ queries:
 
 <script>
   // Filters arrive in the query string from the top-10 table on /intersections.
-  // Do NOT import { page } -- Evidence's page template already declares it.
+  // Do NOT import page -- Evidence's page template already declares it.
   const csv = (v, fallback) => (v ? v.split(',').map((s) => s.trim()) : fallback);
 
   $: qp      = $page.url.searchParams;
@@ -38,17 +38,9 @@ FROM intersections.intersections_unique
 WHERE INTERSECTIONKEY = '${params.INTERSECTIONKEY}'
 ```
 
-```sql crashes_at
--- Full list for the table. NOT referenced by the map layers below: those are
--- inlined per-severity to avoid SELECT-star over a chained crashes_at, which
--- fails on the prerender pass when inputs are unset (this was the build bug).
-SELECT
-    REPORTDATE,
-    MODE,
-    SEVERITY,
+```sql crashes_all
+SELECT REPORTDATE, MODE, SEVERITY, CCN, ADDRESS, LATITUDE, LONGITUDE,
     CASE WHEN TRY_CAST(AGE AS INTEGER) = 120 THEN NULL ELSE TRY_CAST(AGE AS INTEGER) END AS Age,
-    CCN,
-    ADDRESS,
     DIST_TO_INTX_FT
 FROM crashes.crashes
 WHERE INTERSECTIONKEY = '${params.INTERSECTIONKEY}'
@@ -90,24 +82,6 @@ WHERE INTERSECTIONKEY = '${params.INTERSECTIONKEY}'
     AND MODE IN ${inputs.multi_mode_dd.value}
     AND REPORTDATE BETWEEN ('${inputs.date_range.start}'::DATE) AND (('${inputs.date_range.end}'::DATE) + INTERVAL '1 day')
     AND AGE BETWEEN ${inputs.min_age.value} AND (CASE WHEN ${inputs.min_age.value} <> 0 AND ${inputs.max_age.value} = 120 THEN 119 ELSE ${inputs.max_age.value} END)
-```
-
-```sql severity_summary
-SELECT
-    s.SEVERITY,
-    COALESCE(x.n, 0) AS injuries,
-    CASE s.SEVERITY WHEN 'Fatal' THEN 1 WHEN 'Major' THEN 2 WHEN 'Minor' THEN 3 ELSE 4 END AS sort_order
-FROM (SELECT DISTINCT SEVERITY FROM crashes.crashes WHERE SEVERITY IN ${inputs.multi_severity.value}) s
-LEFT JOIN (
-    SELECT SEVERITY, SUM("COUNT") AS n
-    FROM crashes.crashes
-    WHERE INTERSECTIONKEY = '${params.INTERSECTIONKEY}'
-      AND MODE IN ${inputs.multi_mode_dd.value}
-      AND REPORTDATE BETWEEN ('${inputs.date_range.start}'::DATE) AND (('${inputs.date_range.end}'::DATE) + INTERVAL '1 day')
-      AND AGE BETWEEN ${inputs.min_age.value} AND (CASE WHEN ${inputs.min_age.value} <> 0 AND ${inputs.max_age.value} = 120 THEN 119 ELSE ${inputs.max_age.value} END)
-    GROUP BY SEVERITY
-) x ON s.SEVERITY = x.SEVERITY
-ORDER BY sort_order
 ```
 
 <DateRange
@@ -177,14 +151,8 @@ defaultValue="Year to Today"
         </Note>
     </Group>
     <Group>
-        {#if severity_summary.length > 0}
-        <DataTable data={severity_summary} rows=all rowShading=true totalRow=true title="Injuries at This Intersection">
-            <Column id=SEVERITY title="Severity" totalAgg="Total"/>
-            <Column id=injuries title="Injuries" fmt='#,##0'/>
-        </DataTable>
-        {/if}
-        {#if crashes_at.length > 0}
-        <DataTable data={crashes_at} rows=12 search=true rowShading=true wrapTitles=true title="Injury Crashes">
+        {#if crashes_all.length > 0}
+        <DataTable data={crashes_all} rows=12 search=true rowShading=true wrapTitles=true title="Injury Crashes">
             <Column id=REPORTDATE title="Date" fmt='mm/dd/yy hh:mm' wrap=true/>
             <Column id=MODE title="Road User" wrap=true/>
             <Column id=SEVERITY title="Severity"/>
