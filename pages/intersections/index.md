@@ -59,7 +59,7 @@ WHERE c.INTERSECTIONKEY IS NOT NULL
 GROUP BY c.INTERSECTIONKEY
 ```
 
-```sql filtered_intx
+```sql filtered_intx_base
 -- The single source of truth for "which intersections are in scope".
 -- Used by the YoY table, the selected-intersection check, and the calendar-year
 -- chart, so all three can never disagree.
@@ -91,6 +91,166 @@ WHERE INTERSECTIONKEY IS NOT NULL
                 THEN INTERSECTIONKEY = '${inputs.intx_select.INTERSECTIONKEY}'
             ELSE TRUE
          END)
+```
+
+```sql grid_source
+-- Full YoY over the BASE scope (dropdowns + map only), so the table keeps all
+-- its rows and stays clickable. Same columns as the old period_comp_intx table.
+WITH 
+    report_date_range AS (
+        SELECT
+        CASE 
+            WHEN '${inputs.date_range.end}'::DATE 
+                >= (SELECT MAX(LAST_RECORD) FROM crashes.crashes)::DATE
+            THEN (SELECT MAX(LAST_RECORD) FROM crashes.crashes)::DATE + INTERVAL '1 day'
+            ELSE '${inputs.date_range.end}'::DATE + INTERVAL '1 day'
+        END   AS end_date,
+        '${inputs.date_range.start}'::DATE AS start_date
+    ),
+    date_info AS (
+        SELECT
+            start_date,
+            end_date,
+            CASE
+                -- Full calendar year → "YYYY"
+                WHEN start_date = DATE_TRUNC('year', start_date)
+                AND end_date   = DATE_TRUNC('year', start_date) + INTERVAL '1 year'
+                THEN EXTRACT(YEAR FROM start_date)::VARCHAR
+                -- Current YTD → "YYYY YTD"
+                WHEN start_date = DATE_TRUNC('year', CURRENT_DATE)
+                AND '${inputs.date_range.end}'::DATE = end_date - INTERVAL '1 day'
+                THEN EXTRACT(YEAR FROM (end_date - INTERVAL '1 day'))::VARCHAR || ' YTD'
+                -- Default formatted range
+                ELSE
+                    strftime(start_date, '%m/%d/%y')
+                    || '-'
+                    || strftime(end_date - INTERVAL '1 day', '%m/%d/%y')
+            END AS date_range_label,
+            (end_date - start_date) AS date_range_days
+        FROM report_date_range
+    ),
+    offset_period AS (
+        SELECT
+        start_date,
+        end_date,
+        CASE 
+            WHEN end_date > start_date + INTERVAL '5 year' THEN (SELECT 1/0)  -- guard: >5 yrs
+            WHEN end_date > start_date + INTERVAL '4 year' THEN INTERVAL '5 year'
+            WHEN end_date > start_date + INTERVAL '3 year' THEN INTERVAL '4 year'
+            WHEN end_date > start_date + INTERVAL '2 year' THEN INTERVAL '3 year'
+            WHEN end_date > start_date + INTERVAL '1 year' THEN INTERVAL '2 year'
+            ELSE INTERVAL '1 year'
+        END AS interval_offset
+        FROM date_info
+    ),
+    unique_intx AS (
+        SELECT INTERSECTIONKEY, INTERSECTION_NAME FROM ${filtered_intx_base}
+    ),
+    current_period AS (
+        SELECT 
+            crashes.INTERSECTIONKEY, 
+            SUM(crashes.COUNT) AS sum_count
+        FROM 
+            crashes.crashes 
+        JOIN 
+            unique_intx ui 
+            ON crashes.INTERSECTIONKEY = ui.INTERSECTIONKEY
+        WHERE 
+            crashes.SEVERITY IN ${inputs.multi_severity.value} 
+            AND crashes.MODE IN ${inputs.multi_mode_dd.value}
+            AND crashes.REPORTDATE BETWEEN (SELECT start_date FROM date_info) 
+                                        AND (SELECT end_date FROM date_info)
+            AND crashes.AGE BETWEEN ${inputs.min_age.value}
+                                AND (
+                                    CASE 
+                                        WHEN ${inputs.min_age.value} <> 0 
+                                        AND ${inputs.max_age.value} = 120
+                                        THEN 119
+                                        ELSE ${inputs.max_age.value}
+                                    END
+                                    )
+        GROUP BY 
+            crashes.INTERSECTIONKEY
+    ),
+    prior_period AS (
+        SELECT 
+            crashes.INTERSECTIONKEY, 
+            SUM(crashes.COUNT) AS sum_count
+        FROM 
+            crashes.crashes 
+        JOIN 
+            unique_intx ui 
+            ON crashes.INTERSECTIONKEY = ui.INTERSECTIONKEY
+        WHERE 
+            crashes.SEVERITY IN ${inputs.multi_severity.value} 
+            AND crashes.MODE IN ${inputs.multi_mode_dd.value}
+            AND crashes.REPORTDATE BETWEEN (
+                    (SELECT start_date FROM date_info) - (SELECT interval_offset FROM offset_period)
+                ) AND (
+                    (SELECT end_date FROM date_info) - (SELECT interval_offset FROM offset_period)
+                )
+            AND crashes.AGE BETWEEN ${inputs.min_age.value}
+                                AND (
+                                    CASE 
+                                        WHEN ${inputs.min_age.value} <> 0 
+                                        AND ${inputs.max_age.value} = 120
+                                        THEN 119
+                                        ELSE ${inputs.max_age.value}
+                                    END
+                                    )
+        GROUP BY 
+            crashes.INTERSECTIONKEY
+    ),
+    prior_date_info AS (
+        SELECT
+            (SELECT start_date FROM date_info) - (SELECT interval_offset FROM offset_period) AS prior_start_date,
+            (SELECT end_date   FROM date_info) - (SELECT interval_offset FROM offset_period) AS prior_end_date
+    ),
+    prior_date_label AS (
+        SELECT
+            CASE
+                -- Full calendar year → "YYYY"
+                WHEN prior_start_date = DATE_TRUNC('year', prior_start_date)
+                AND prior_end_date   = DATE_TRUNC('year', prior_start_date) + INTERVAL '1 year'
+                THEN EXTRACT(YEAR FROM prior_start_date)::VARCHAR
+                -- Prior YTD → "YYYY YTD"
+                WHEN (SELECT start_date FROM date_info) = DATE_TRUNC('year', CURRENT_DATE)
+                AND '${inputs.date_range.end}'::DATE = (SELECT end_date FROM date_info) - INTERVAL '1 day'
+                THEN EXTRACT(YEAR FROM prior_end_date)::VARCHAR || ' YTD'
+                -- Default formatted range
+                ELSE
+                    strftime(prior_start_date, '%m/%d/%y')
+                    || '-'
+                    || strftime(prior_end_date - INTERVAL '1 day', '%m/%d/%y')
+            END AS prior_date_range_label
+        FROM prior_date_info
+    )
+SELECT 
+    ui.INTERSECTIONKEY,
+    ui.INTERSECTION_NAME,
+    COALESCE(cp.sum_count, 0) AS current_period_sum, 
+    COALESCE(pp.sum_count, 0) AS prior_period_sum, 
+    COALESCE(cp.sum_count, 0) - COALESCE(pp.sum_count, 0) AS difference,
+    CASE 
+        WHEN COALESCE(cp.sum_count, 0) = 0 THEN NULL
+        WHEN COALESCE(pp.sum_count, 0) != 0 THEN ((COALESCE(cp.sum_count, 0) - COALESCE(pp.sum_count, 0))
+                                                / COALESCE(pp.sum_count, 0))
+        ELSE NULL 
+    END AS percentage_change,
+    (SELECT date_range_label FROM date_info) AS current_period_range,
+    (SELECT prior_date_range_label FROM prior_date_label) AS prior_period_range
+FROM unique_intx ui
+LEFT JOIN current_period cp ON ui.INTERSECTIONKEY = cp.INTERSECTIONKEY
+LEFT JOIN prior_period pp ON ui.INTERSECTIONKEY = pp.INTERSECTIONKEY
+ORDER BY current_period_sum DESC, ui.INTERSECTIONKEY
+```
+
+```sql filtered_intx
+-- Base scope AND the table row selection (inputs.intx_pick). Downstream queries
+-- (selected_intx, sel_*) read THIS.
+SELECT INTERSECTION_NAME, INTERSECTIONKEY
+FROM ${filtered_intx_base}
+WHERE ${inputs.intx_pick}
 ```
 
 ```sql period_comp_intx
@@ -798,13 +958,35 @@ defaultValue={
             <Dropdown data={roadsegment_dropdown_a} name=roadsegment_a value=road title="①" defaultValue="All Streets" order="sort_order asc, road asc"/>
             <Dropdown data={roadsegment_dropdown_b} name=roadsegment_b value=road title="②" defaultValue="All Streets" order="sort_order asc, road asc"/>
         </Alert>
-        <DataTable data={period_comp_intx} search=false rows=10 sort="current_period_sum desc" title="Year Over Year Comparison of {`${mode_severity_selection[0].SEVERITY_SELECTION}`} for {`${mode_severity_selection[0].MODE_SELECTION}`} by Intersection" wrapTitles=true rowShading=true>
-            <Column id=INTERSECTION_NAME title="Intersection" wrap=true/>
-            <Column id=current_period_sum title={`${period_comp_intx[0].current_period_range}`} />
-            <Column id=prior_period_sum title={`${period_comp_intx[0].prior_period_range}`}  />
-            <Column id=difference title="Diff" contentType=delta downIsGood=True />
-            <Column id=percentage_change fmt='pct0' title="% Diff" /> 
-        </DataTable>
+        <div style="font-size: 14px; margin-bottom: 4px;">
+            <b>Year Over Year Comparison of {`${mode_severity_selection[0].SEVERITY_SELECTION}`} for {`${mode_severity_selection[0].MODE_SELECTION}`} by Intersection</b>
+            <span style="display:block; font-size: 12px; color: #6c757d;">
+                Click a row to filter the page. Click it again to clear. Click a header to sort.
+            </span>
+        </div>
+        
+        {#if grid_source.length > 0}
+        <SelectableTable
+            data={grid_source}
+            name=intx_pick
+            valueCol=INTERSECTION_NAME
+            rows=10
+            rowShading=true
+            collapseOnSelect=true
+            columns={[
+                { id: 'INTERSECTION_NAME', title: 'Intersection' },
+                { id: 'current_period_sum', title: grid_source[0].current_period_range },
+                { id: 'prior_period_sum', title: grid_source[0].prior_period_range },
+                { id: 'difference', title: 'Diff', fmt: 'delta', downIsGood: true },
+                { id: 'percentage_change', title: '% Diff', fmt: 'pct' }
+            ]}
+            initialSort={{ col: 'current_period_sum', dir: 'desc' }}
+        />
+        {:else}
+        <Note>
+            No injuries or fatalities at this intersection for the selected filters. Try expanding the date range (for example to "All Time"), or add severities or road users above.
+        </Note>
+        {/if}
 
         {#if selected_intx.length === 1 && sel_severity.length > 0 && sel_mode.length > 0}
 
