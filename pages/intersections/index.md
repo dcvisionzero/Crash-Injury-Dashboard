@@ -1,5 +1,5 @@
 ---
-title: Intersections
+title: Intersections (BETA)
 queries:
    - last_record: last_record.sql
    - age_range: age_range.sql
@@ -905,7 +905,7 @@ defaultValue={
         <div style="font-size: 14px;">
             <b>{`${mode_severity_selection[0].SEVERITY_SELECTION}`} for {`${mode_severity_selection[0].MODE_SELECTION}`} by Intersection ({`${period_comp_intx[0].current_period_range}`})</b>
             <span style="display:block; font-size: 12px; color: #6c757d;">
-                Select an intersection on the map for details. Refresh the page to reset.
+                Select an intersection on the map to see details. Select it again to clear. 
             </span>
         </div>
 
@@ -950,18 +950,21 @@ defaultValue={
     <Group>
         <Alert status="positive">
             <div style="font-size: 14px;">
-                <b>Start Here: Intersection Search</b>
+                <b>Intersection Search:</b>
                 <span style="display:block; font-size: 12px; color: #6c757d;">
                     Choose a street (↓) and the intersecting street (↓)
                 </span>
             </div>
             <Dropdown data={roadsegment_dropdown_a} name=roadsegment_a value=road title="①" defaultValue="All Streets" order="sort_order asc, road asc"/>
             <Dropdown data={roadsegment_dropdown_b} name=roadsegment_b value=road title="②" defaultValue="All Streets" order="sort_order asc, road asc"/>
+            <div style="display:block; font-size: 12px; color: #6c757d;">
+                To reset it, select “All Streets” for both fields.
+            </div>
         </Alert>
         <div style="font-size: 14px; margin-bottom: 4px;">
             <b>Year Over Year Comparison of {`${mode_severity_selection[0].SEVERITY_SELECTION}`} for {`${mode_severity_selection[0].MODE_SELECTION}`} by Intersection</b>
             <span style="display:block; font-size: 12px; color: #6c757d;">
-                Click a row to filter the page. Click it again to clear. Click a header to sort.
+                Select a row to see details. Select it again to clear. Select a header to sort.
             </span>
         </div>
         
@@ -973,6 +976,7 @@ defaultValue={
             rows=10
             rowShading=true
             collapseOnSelect=true
+            wrapTitles=true
             columns={[
                 { id: 'INTERSECTION_NAME', title: 'Intersection' },
                 { id: 'current_period_sum', title: grid_source[0].current_period_range },
