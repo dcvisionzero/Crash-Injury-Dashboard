@@ -608,6 +608,73 @@ INNER JOIN intersections.intersections_unique i
     ON m.INTERSECTIONKEY = i.INTERSECTIONKEY
 ```
 
+```sql intersection_map_diff
+-- Same scope/filters as intersection_map, but the mapped value is the YoY
+-- DIFFERENCE (current period minus prior period), so the choropleth shows change.
+-- diff_min / diff_max give a SYMMETRIC domain around zero (±max|difference|) so
+-- the diverging green->white->red scale always centers neutral at zero, and
+-- rescales sensibly as the filters change.
+WITH per AS (
+    SELECT
+        -- COALESCE both sides: an intersection with crashes ONLY in the prior
+        -- period (a pure decrease) has no cur row, so cur.INTERSECTIONKEY is NULL.
+        COALESCE(cur.INTERSECTIONKEY, pri.INTERSECTIONKEY) AS INTERSECTIONKEY,
+        COALESCE(cur.n, 0) - COALESCE(pri.n, 0) AS difference
+    FROM (
+        SELECT INTERSECTIONKEY, SUM("COUNT") AS n
+        FROM crashes.crashes
+        WHERE INTERSECTIONKEY IS NOT NULL
+            AND SEVERITY IN ${inputs.multi_severity.value}
+            AND MODE IN ${inputs.multi_mode_dd.value}
+            AND REPORTDATE BETWEEN (SELECT start_date FROM ${selected_intx_periods}) AND (SELECT end_date FROM ${selected_intx_periods})
+            AND AGE BETWEEN ${inputs.min_age.value} AND (CASE WHEN ${inputs.min_age.value} <> 0 AND ${inputs.max_age.value} = 120 THEN 119 ELSE ${inputs.max_age.value} END)
+        GROUP BY INTERSECTIONKEY
+    ) cur
+    FULL OUTER JOIN (
+        SELECT INTERSECTIONKEY, SUM("COUNT") AS n
+        FROM crashes.crashes
+        WHERE INTERSECTIONKEY IS NOT NULL
+            AND SEVERITY IN ${inputs.multi_severity.value}
+            AND MODE IN ${inputs.multi_mode_dd.value}
+            AND REPORTDATE BETWEEN (SELECT prior_start FROM ${selected_intx_periods}) AND (SELECT prior_end FROM ${selected_intx_periods})
+            AND AGE BETWEEN ${inputs.min_age.value} AND (CASE WHEN ${inputs.min_age.value} <> 0 AND ${inputs.max_age.value} = 120 THEN 119 ELSE ${inputs.max_age.value} END)
+        GROUP BY INTERSECTIONKEY
+    ) pri ON cur.INTERSECTIONKEY = pri.INTERSECTIONKEY
+),
+scoped AS (
+    -- every intersection with at least one crash in EITHER period, so increases
+    -- AND decreases both appear on the map
+    SELECT INTERSECTIONKEY, difference
+    FROM per
+    WHERE INTERSECTIONKEY IS NOT NULL
+)
+SELECT
+    sc.INTERSECTIONKEY,
+    iu.canonical_name AS INTERSECTION_NAME,
+    sc.difference,
+    (SELECT GREATEST(MAX(ABS(difference)), 1) FROM scoped) AS diff_abs
+FROM scoped sc
+JOIN intersections.intersections_unique iu
+    ON iu.INTERSECTIONKEY = sc.INTERSECTIONKEY
+-- draw order: layers render in row order, so the largest changes go LAST,
+-- which puts them on top and makes them easy to spot
+ORDER BY ABS(sc.difference) ASC
+```
+
+```sql intersection_points_diff
+SELECT
+    m.INTERSECTIONKEY,
+    m.INTERSECTION_NAME,
+    m.difference,
+    m.diff_abs,
+    i.LATITUDE,
+    i.LONGITUDE
+FROM ${intersection_map_diff} m
+INNER JOIN intersections.intersections_unique i
+    ON m.INTERSECTIONKEY = i.INTERSECTIONKEY
+ORDER BY ABS(m.difference) ASC
+```
+
 ```sql selected_intx_periods
 WITH report_date_range AS (
     SELECT
@@ -645,20 +712,44 @@ prior AS (
     SELECT
         (SELECT start_date FROM date_info) - (SELECT interval_offset FROM offset_period) AS prior_start,
         (SELECT end_date   FROM date_info) - (SELECT interval_offset FROM offset_period) AS prior_end
+),
+labeled AS (
+    SELECT
+        (SELECT date_range_label FROM date_info) AS current_period_range,
+        CASE
+            WHEN prior_start = DATE_TRUNC('year', prior_start) AND prior_end = DATE_TRUNC('year', prior_start) + INTERVAL '1 year'
+                THEN EXTRACT(YEAR FROM prior_start)::VARCHAR
+            WHEN (SELECT start_date FROM date_info) = DATE_TRUNC('year', CURRENT_DATE)
+                 AND '${inputs.date_range.end}'::DATE = (SELECT end_date FROM date_info) - INTERVAL '1 day'
+                THEN EXTRACT(YEAR FROM prior_end)::VARCHAR || ' YTD'
+            ELSE strftime(prior_start, '%m/%d/%y') || '-' || strftime(prior_end - INTERVAL '1 day', '%m/%d/%y')
+        END AS prior_period_range,
+        prior_start,
+        prior_end,
+        (SELECT start_date FROM date_info) AS start_date,
+        (SELECT end_date   FROM date_info) AS end_date
+    FROM prior
 )
 SELECT
-    (SELECT date_range_label FROM date_info) AS current_period_range,
-    CASE
-        WHEN prior_start = DATE_TRUNC('year', prior_start) AND prior_end = DATE_TRUNC('year', prior_start) + INTERVAL '1 year'
-            THEN EXTRACT(YEAR FROM prior_start)::VARCHAR
-        WHEN (SELECT start_date FROM date_info) = DATE_TRUNC('year', CURRENT_DATE)
-             AND '${inputs.date_range.end}'::DATE = (SELECT end_date FROM date_info) - INTERVAL '1 day'
-            THEN EXTRACT(YEAR FROM prior_end)::VARCHAR || ' YTD'
-        ELSE strftime(prior_start, '%m/%d/%y') || '-' || strftime(prior_end - INTERVAL '1 day', '%m/%d/%y')
-    END AS prior_period_range,
+    current_period_range,
+    prior_period_range,
     prior_start,
-    prior_end
-FROM prior
+    prior_end,
+    start_date,
+    end_date,
+    -- short forms: a label that starts with a 4-digit year becomes '26 / '26 YTD.
+    -- Date-range labels (01/05/26-03/04/26) and 'Since 2017' are left alone.
+    CASE WHEN regexp_matches(current_period_range, '^[0-9]{4}')
+         THEN '''' || substr(current_period_range, 3)
+         ELSE current_period_range END AS current_period_short,
+    -- same, minus a trailing ' YTD', so the tab can read "'26 vs '25 YTD"
+    CASE WHEN regexp_matches(current_period_range, '^[0-9]{4}')
+         THEN '''' || regexp_replace(substr(current_period_range, 3), ' YTD$', '')
+         ELSE current_period_range END AS current_period_short_bare,
+    CASE WHEN regexp_matches(prior_period_range, '^[0-9]{4}')
+         THEN '''' || substr(prior_period_range, 3)
+         ELSE prior_period_range END AS prior_period_short
+FROM labeled
 ```
 
 ```sql selected_intx
@@ -902,13 +993,15 @@ defaultValue={
 
 <Grid cols=2>
     <Group>
+
+        <Tabs>
+        <Tab label="{`${selected_intx_periods[0].current_period_range}`}">
         <div style="font-size: 14px;">
-            <b>{`${mode_severity_selection[0].SEVERITY_SELECTION}`} for {`${mode_severity_selection[0].MODE_SELECTION}`} by Intersection ({`${period_comp_intx[0].current_period_range}`})</b>
+            <b>{`${mode_severity_selection[0].SEVERITY_SELECTION}`} for {`${mode_severity_selection[0].MODE_SELECTION}`} by Intersection</b>
             <span style="display:block; font-size: 12px; color: #6c757d;">
-                Select an intersection on the map to see details. Select it again to clear. 
+                Select an intersection on the map for details. Refresh the page to reset.
             </span>
         </div>
-
         <BaseMap
             height=450
         >
@@ -931,6 +1024,32 @@ defaultValue={
             ]}
         />
         </BaseMap>
+        </Tab>
+        <Tab label="{`${selected_intx_periods[0].current_period_short_bare}`} vs {`${selected_intx_periods[0].prior_period_short}`}">
+        <BaseMap
+            height=450
+        >
+        <Areas data={unique_hin} geoJsonUrl='https://raw.githubusercontent.com/rafaelmorenoco/Crash-Injury-Dashboard-Frontend/main/static/High_Injury_Network.geojson' geoId=GIS_ID areaCol=GIS_ID borderColor=#9d00ff color=#1C00ff00
+            tooltip={[
+                {id: 'ROUTENAME'},
+                {id: 'Tier'}
+            ]}
+        />
+        <Areas data={intersection_map_diff} name=intx_select geoJsonUrl='https://raw.githubusercontent.com/rafaelmorenoco/Crash-Injury-Dashboard-Frontend/main/static/Intersection_Points_buffers.geojson' geoId=INTERSECTIONKEY areaCol=INTERSECTIONKEY value=difference min={-intersection_map_diff[0].diff_abs} max={intersection_map_diff[0].diff_abs} colorPalette={['#16a34a', '#f7f7f7', '#dc2626']} opacity=0.7 borderWidth=0.5 borderColor='#A9A9A9' ignoreZoom=true
+            tooltip={[
+                {id:'INTERSECTION_NAME', valueClass:'text-l font-semibold', showColumnName:false},
+                {id:'difference', title:'Difference', fmt:'+#,##0;-#,##0;0'}
+            ]}
+        />
+        <Points data={intersection_points_diff} name=intx_select_pt lat=LATITUDE long=LONGITUDE value=difference min={-intersection_points_diff[0].diff_abs} max={intersection_points_diff[0].diff_abs} colorPalette={['#16a34a', '#f7f7f7', '#dc2626']} opacity=0.5 ignoreZoom=true legend=false
+            tooltip={[
+                {id:'INTERSECTION_NAME', valueClass:'text-l font-semibold', showColumnName:false},
+                {id:'difference', title:'Difference', fmt:'+#,##0;-#,##0;0'}
+            ]}
+        />
+        </BaseMap>
+        </Tab>
+        </Tabs>
         <Note>
             The purple lines represent DC's High Injury Network.
         </Note>
@@ -950,24 +1069,20 @@ defaultValue={
     <Group>
         <Alert status="positive">
             <div style="font-size: 14px;">
-                <b>Intersection Search:</b>
+                <b>Start Here: Intersection Search</b>
                 <span style="display:block; font-size: 12px; color: #6c757d;">
                     Choose a street (↓) and the intersecting street (↓)
                 </span>
             </div>
             <Dropdown data={roadsegment_dropdown_a} name=roadsegment_a value=road title="①" defaultValue="All Streets" order="sort_order asc, road asc"/>
             <Dropdown data={roadsegment_dropdown_b} name=roadsegment_b value=road title="②" defaultValue="All Streets" order="sort_order asc, road asc"/>
-            <div style="display:block; font-size: 12px; color: #6c757d;">
-                To reset it, select “All Streets” for both fields.
-            </div>
         </Alert>
         <div style="font-size: 14px; margin-bottom: 4px;">
             <b>Year Over Year Comparison of {`${mode_severity_selection[0].SEVERITY_SELECTION}`} for {`${mode_severity_selection[0].MODE_SELECTION}`} by Intersection</b>
             <span style="display:block; font-size: 12px; color: #6c757d;">
-                Select a row to see details. Select it again to clear. Select a header to sort.
+                Click a row to filter the page. Click it again to clear. Click a header to sort.
             </span>
         </div>
-        
         {#if grid_source.length > 0}
         <SelectableTable
             data={grid_source}
@@ -976,7 +1091,6 @@ defaultValue={
             rows=10
             rowShading=true
             collapseOnSelect=true
-            wrapTitles=true
             columns={[
                 { id: 'INTERSECTION_NAME', title: 'Intersection' },
                 { id: 'current_period_sum', title: grid_source[0].current_period_range },
