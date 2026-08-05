@@ -24,6 +24,7 @@
   export let rows = 10;                    // rows per page
   export let rowShading = false;
   export let collapseOnSelect = false;    // when a row is selected, show only it
+  export let wrapTitles = false;          // allow header titles to wrap to multiple lines
 
   const inputs = getInputContext();
   const selected = writable([]);
@@ -118,7 +119,7 @@
         <tr>
           {#each cols as c}
             <th
-              class="font-semibold py-1 pr-3 cursor-pointer select-none whitespace-nowrap header-cell"
+              class="font-semibold py-1 pr-3 cursor-pointer select-none header-cell {wrapTitles ? '' : 'whitespace-nowrap'}"
               style={isNumericFmt(c.fmt) || c.align === 'right' ? 'text-align:right' : 'text-align:left'}
               on:click={() => headerClick(c.id)}
             >
@@ -203,6 +204,8 @@
     vertical-align: middle;
     pointer-events: none;
   }
+  /* keep multi-line headers top-aligned so columns line up when titles wrap */
+  .selectable-table :global(thead th) { vertical-align: top; }
 
   .selectable-table :global(.link-btn),
   .selectable-table :global(.pg) { text-decoration: underline; cursor: pointer; }

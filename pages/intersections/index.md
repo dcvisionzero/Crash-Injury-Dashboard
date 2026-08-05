@@ -74,16 +74,16 @@ SELECT
     canonical_name AS INTERSECTION_NAME
 FROM intersections.intersections_unique
 WHERE INTERSECTIONKEY IS NOT NULL
-    AND ('${inputs.roadsegment_a.value}' = 'All Streets'
-         OR STREET_1_FULL = '${inputs.roadsegment_a.value}'
-         OR STREET_2_FULL = '${inputs.roadsegment_a.value}')
-    AND ('${inputs.roadsegment_b.value}' = 'All Streets'
-         OR STREET_1_FULL = '${inputs.roadsegment_b.value}'
-         OR STREET_2_FULL = '${inputs.roadsegment_b.value}')
+    AND ('${(inputs.roadsegment_a.value ?? "").replaceAll("'","''")}' = 'All Streets'
+         OR STREET_1_FULL = '${(inputs.roadsegment_a.value ?? "").replaceAll("'","''")}'
+         OR STREET_2_FULL = '${(inputs.roadsegment_a.value ?? "").replaceAll("'","''")}')
+    AND ('${(inputs.roadsegment_b.value ?? "").replaceAll("'","''")}' = 'All Streets'
+         OR STREET_1_FULL = '${(inputs.roadsegment_b.value ?? "").replaceAll("'","''")}'
+         OR STREET_2_FULL = '${(inputs.roadsegment_b.value ?? "").replaceAll("'","''")}')
     AND (CASE
             -- the dropdowns win whenever they are in use
-            WHEN '${inputs.roadsegment_a.value}' <> 'All Streets'
-              OR '${inputs.roadsegment_b.value}' <> 'All Streets'
+            WHEN '${(inputs.roadsegment_a.value ?? "").replaceAll("'","''")}' <> 'All Streets'
+              OR '${(inputs.roadsegment_b.value ?? "").replaceAll("'","''")}' <> 'All Streets'
                 THEN TRUE
             WHEN length('${inputs.intx_select_pt.INTERSECTIONKEY}') = 32
                 THEN INTERSECTIONKEY = '${inputs.intx_select_pt.INTERSECTIONKEY}'
@@ -502,10 +502,10 @@ UNION ALL
 SELECT DISTINCT road, 1 AS sort_order
 FROM (
     SELECT STREET_2_FULL AS road FROM intersections.intersections_unique
-        WHERE STREET_1_FULL = '${inputs.roadsegment_a.value}' AND INTERSECTIONKEY IS NOT NULL
+        WHERE STREET_1_FULL = '${(inputs.roadsegment_a.value ?? "").replaceAll("'","''")}' AND INTERSECTIONKEY IS NOT NULL
     UNION
     SELECT STREET_1_FULL AS road FROM intersections.intersections_unique
-        WHERE STREET_2_FULL = '${inputs.roadsegment_a.value}' AND INTERSECTIONKEY IS NOT NULL
+        WHERE STREET_2_FULL = '${(inputs.roadsegment_a.value ?? "").replaceAll("'","''")}' AND INTERSECTIONKEY IS NOT NULL
 )
 ORDER BY sort_order, road
 ```
@@ -991,9 +991,9 @@ defaultValue={
     description='Age 120 serves as a placeholder for missing age values in the records. However, missing values will be automatically excluded from the query if the default 0-120 range is changed by the user. To get a count of missing age values, go to the "Age Distribution" page.'
 />
 
+<div class="invert-on-mobile">
 <Grid cols=2>
     <Group>
-
         <Tabs>
         <Tab label="{`${selected_intx_periods[0].current_period_range}`}">
         <div style="font-size: 14px;">
@@ -1026,6 +1026,12 @@ defaultValue={
         </BaseMap>
         </Tab>
         <Tab label="{`${selected_intx_periods[0].current_period_short_bare}`} vs {`${selected_intx_periods[0].prior_period_short}`}">
+        <div style="font-size: 14px;">
+            <b>{`${mode_severity_selection[0].SEVERITY_SELECTION}`} for {`${mode_severity_selection[0].MODE_SELECTION}`} by Intersection</b>
+            <span style="display:block; font-size: 12px; color: #6c757d;">
+                Select an intersection on the map for details. Refresh the page to reset.
+            </span>
+        </div>
         <BaseMap
             height=450
         >
@@ -1091,6 +1097,7 @@ defaultValue={
             rows=10
             rowShading=true
             collapseOnSelect=true
+            wrapTitles=true
             columns={[
                 { id: 'INTERSECTION_NAME', title: 'Intersection' },
                 { id: 'current_period_sum', title: grid_source[0].current_period_range },
@@ -1231,6 +1238,7 @@ defaultValue={
         />
     </Group>
 </Grid>
+</div>
 
 {#if selected_intx.length === 1 && sel_crashes.length > 0}
 
@@ -1247,3 +1255,15 @@ defaultValue={
 </Details>
 
 {/if}
+
+
+<style>
+  /* On mobile the 2-col Grid collapses to 1 col and stacks in source order,
+     putting the map first. Below 640px, flip the two top-level columns so the
+     intersection search + table come first and the map second. Uses direct-child
+     (>) selectors so the nested Grid inside the right column is unaffected. */
+  @media (max-width: 639px) {
+    .invert-on-mobile > :global(.grid) > :global(div:nth-child(1)) { order: 2; }
+    .invert-on-mobile > :global(.grid) > :global(div:nth-child(2)) { order: 1; }
+  }
+</style>
