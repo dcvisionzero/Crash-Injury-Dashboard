@@ -40,6 +40,7 @@ jobs:
           EVIDENCE_SOURCE__INTERSECTIONS__FILENAME: ${{ secrets.EVIDENCE_SOURCE__INTERSECTIONS__FILENAME }}
           EVIDENCE_SOURCE__SMD__FILENAME: ${{ secrets.EVIDENCE_SOURCE__SMD__FILENAME }}
           EVIDENCE_SOURCE__WARDS__FILENAME: ${{ secrets.EVIDENCE_SOURCE__WARDS__FILENAME }}
+          VITE_CARTO_KEY: ${{ secrets.VITE_CARTO_KEY }}
         run: |
           npm run sources
           npm run build
