@@ -832,6 +832,8 @@ description="By default, there is a two-day lag after the latest update"
         <BaseMap
             height=560
             startingZoom=12
+            basemap={`https://basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png?key=${import.meta.env.VITE_CARTO_KEY}`}
+            attribution='© <a href="https://carto.com/attributions">CARTO</a>, © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
             title="{`${mode_severity_selection[0].SEVERITY_SELECTION}`} for {`${mode_severity_selection[0].MODE_SELECTION}`} by Road Segments of the HIN ({`${hin_tier_table[0].current_period_range}`})"
         >
         <Areas data={hin_tier_map} geoJsonUrl='https://raw.githubusercontent.com/rafaelmorenoco/Crash-Injury-Dashboard-Frontend/main/static/hin_buff_over_30.geojson' geoId=GIS_ID areaCol=GIS_ID value=count borderWidth=1
