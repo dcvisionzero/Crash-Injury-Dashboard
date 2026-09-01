@@ -7,14 +7,13 @@ on:
 
 jobs:
   build:
-    runs-on: self-hosted   # Your Windows runner
+    runs-on: ubuntu-latest
     env:
-      NODE_OPTIONS: '--max-old-space-size=12288'
-
+      NODE_OPTIONS: '--max-old-space-size=12288' # Increased to 12GB
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
+      
       - name: Install Node.js
         uses: actions/setup-node@v4
         with:
@@ -25,16 +24,14 @@ jobs:
         run: npm install
 
       - name: Download crashes.parquet from Release
-        shell: pwsh
         run: |
-          Invoke-WebRequest `
-            -Uri "https://github.com/rafaelmorenoco/Crash-Injury-Dashboard-Backend/releases/latest/download/crashes.parquet" `
-            -OutFile "crashes.parquet"
+          curl -L -o crashes.parquet \
+            https://github.com/rafaelmorenoco/Crash-Injury-Dashboard-Backend/releases/latest/download/crashes.parquet
 
       - name: Build
         env:
           BASE_PATH: '/${{ github.event.repository.name }}'
-          NODE_OPTIONS: '--max-old-space-size=12288'
+          NODE_OPTIONS: '--max-old-space-size=12288' # Also set here for build step
           EVIDENCE_SOURCE__ANC__FILENAME: ${{ secrets.EVIDENCE_SOURCE__ANC__FILENAME }}
           EVIDENCE_SOURCE__CRASHES__FILENAME: ${{ secrets.EVIDENCE_SOURCE__CRASHES__FILENAME }}
           EVIDENCE_SOURCE__DC_BOUNDARY__FILENAME: ${{ secrets.EVIDENCE_SOURCE__DC_BOUNDARY__FILENAME }}
@@ -51,11 +48,11 @@ jobs:
       - name: Upload Artifacts
         uses: actions/upload-pages-artifact@v3
         with:
-          path: "build/${{ github.event.repository.name }}"
+          path: 'build/${{ github.event.repository.name }}'
 
   deploy:
     needs: build
-    runs-on: ubuntu-latest   # GitHub Pages deploy MUST run on GitHub infra
+    runs-on: ubuntu-latest
 
     permissions:
       pages: write
