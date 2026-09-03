@@ -76,7 +76,7 @@ crash_map AS (
         ('motor vehicle - other', 'MV-Oth'),
         ('motor vehicle - motorcycle*', 'MV-MC'),
         ('motor vehicle - standing scooter*', 'MV-SS'),
-        ('other - bicycle', 'Oth-Bic'),
+        ('bicycle - other', 'Bic-Oth'),
         ('other - pedestrian', 'Oth-Ped'),
         ('motorcycle* - pedestrian', 'MC-Ped'),
         ('motorcycle* - bicycle', 'MC-Bic'),

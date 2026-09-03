@@ -80,7 +80,7 @@ WITH crash_map AS (
         ('motor vehicle - other', 'MV-Oth'),
         ('motor vehicle - motorcycle*', 'MV-MC*'),
         ('motor vehicle - standing scooter*', 'MV-SS*'),
-        ('other - bicycle', 'Oth-Bic'),
+        ('bicycle - other', 'Bic-Oth'),
         ('other - pedestrian', 'Oth-Ped'),
         ('motorcycle* - pedestrian', 'MC*-Ped'),
         ('motorcycle* - bicycle', 'MC*-Bic'),
@@ -425,7 +425,7 @@ Crash type describes the mix of road users or vehicles involved in a crash, with
       <tr><td>bicycle - bicycle</td><td>Bic-Bic</td><td>Two bicycles.</td></tr>
       <tr><td>multiple bicycles</td><td>&gt;2 Bic</td><td>Three or more bicycles.</td></tr>
       <tr><td>bicycle - pedestrian</td><td>Bic-Ped</td><td>A bicycle and a pedestrian.</td></tr>
-      <tr><td>other - bicycle</td><td>Oth-Bic</td><td>An "other" road user and a bicycle.</td></tr>
+      <tr><td>bicycle - other</td><td>Bic-Oth</td><td>A bicycle and an "other" road user.</td></tr>
       <tr><td>other - pedestrian</td><td>Oth-Ped</td><td>An "other" road user and a pedestrian.</td></tr>
       <tr><td>pedestrian only</td><td>Ped-Obj</td><td>A pedestrian with no other recorded party.</td></tr>
       <tr><td>other</td><td>Oth-Obj</td><td>An "other" road user only (major/minor injury data).</td></tr>
