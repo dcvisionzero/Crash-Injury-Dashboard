@@ -2238,17 +2238,17 @@ defaultValue={
       <tr>
         <td><img src="https://raw.githubusercontent.com/rafaelmorenoco/Crash-Injury-Dashboard-Backend/main/Icons/driver.png" alt="Driver Icon" width="32"></td>
         <td>Driver</td>
-        <td>A person operating a motor vehicle.</td>
+        <td>A person operating a conventional or commercial motor vehicle, as defined by DMV, such as a car, truck, SUV, van, bus, or semi-truck.</td>
       </tr>
       <tr>
         <td><img src="https://raw.githubusercontent.com/rafaelmorenoco/Crash-Injury-Dashboard-Backend/main/Icons/passenger.png" alt="Passenger Icon" width="32"></td>
         <td>Passenger</td>
-        <td>A person riding along in a motor vehicle.</td>
+        <td>A person being transported in a motor vehicle while not operating it.</td>
       </tr>
       <tr>
         <td><img src="https://raw.githubusercontent.com/rafaelmorenoco/Crash-Injury-Dashboard-Backend/main/Icons/pedestrian.png" alt="Pedestrian Icon" width="32"></td>
         <td>Pedestrian</td>
-        <td>A person moving on foot or using a wheelchair..</td>
+        <td>A person moving on foot or using a wheelchair.</td>
       </tr>
       <tr>
         <td><img src="https://raw.githubusercontent.com/rafaelmorenoco/Crash-Injury-Dashboard-Backend/main/Icons/bicyclist.png" alt="Bicyclist Icon" width="32"></td>
@@ -2258,17 +2258,17 @@ defaultValue={
       <tr>
         <td><img src="https://raw.githubusercontent.com/rafaelmorenoco/Crash-Injury-Dashboard-Backend/main/Icons/motorcyclist.png" alt="Motorcyclist Icon" width="32"></td>
         <td>Motorcyclist*</td>
-        <td>A person riding a motorcycle or motor‑driven cycle (moped). *Fatal only.</td>
+        <td>A person riding a motorcycle or motor-driven cycle. *Fatal only.</td>
       </tr>
       <tr>
         <td><img src="https://raw.githubusercontent.com/rafaelmorenoco/Crash-Injury-Dashboard-Backend/main/Icons/scooterist.png" alt="Scooterist Icon" width="32"></td>
         <td>Scooterist*</td>
-        <td>A person using a standing scooter or personal mobility device. *Fatal only.</td>
+        <td>A person riding a standing scooter, e-scooter, or personal mobility device. *Fatal only.</td>
       </tr>
       <tr>
         <td><img src="https://raw.githubusercontent.com/rafaelmorenoco/Crash-Injury-Dashboard-Backend/main/Icons/unknown.png" alt="Other Icon" width="32"></td>
         <td>Other**</td>
-        <td>Includes users of motrocycles, motor‑driven cycles (mopeds), personal mobility devices (such as standing scooters), and other or unknown classifications. **Major and minor injury only.</td>
+        <td>Includes users of autocycles, motorcycles, motor-driven cycles, standing scooters, e-scooters, personal mobility devices, occupants of non-moving vehicles, witnesses, and people with other or unknown classifications. **Major and minor injury only.</td>
       </tr>
     </tbody>
   </table>
