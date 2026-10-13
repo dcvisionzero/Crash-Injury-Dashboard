@@ -86,6 +86,9 @@ WITH crash_map AS (
         ('motorcycle* - bicycle', 'MC*-Bic'),
         ('standing scooter* - pedestrian', 'SS*-Ped'),
         ('standing scooter* - bicycle', 'SS*-Bic'),
+        ('standing scooter* - standing scooter*', 'SS*-SS*'),
+        ('motorcycle* - motorcycle*', 'MC*-MC*'),
+        ('motorcycle* - standing scooter*', 'MC*-SS*'),
         ('bicycle - pedestrian', 'Bic-Ped'),
         ('multi-party', 'MP'),
         ('unclassified', 'Unc')
@@ -435,6 +438,9 @@ Crash type describes the mix of road users or vehicles involved in a crash, with
       <tr><td>motorcycle* - bicycle</td><td>MC*-Bic</td><td>A motorcycle and a bicycle.</td></tr>
       <tr><td>standing scooter* - pedestrian</td><td>SS*-Ped</td><td>A standing scooter and a pedestrian.</td></tr>
       <tr><td>standing scooter* - bicycle</td><td>SS*-Bic</td><td>A standing scooter and a bicycle.</td></tr>
+      <tr><td>standing scooter* - standing scooter*</td><td>SS*-SS*</td><td>Two standing scooters.</td></tr>
+      <tr><td>motorcycle* - motorcycle*</td><td>MC*-MC*</td><td>Two motorcycles.</td></tr>
+      <tr><td>motorcycle* - standing scooter*</td><td>MC*-SS*</td><td>A motorcycle and a standing scooter.</td></tr>
       <tr><td>multi-party</td><td>MP</td><td>Three or more different road-user types involved.</td></tr>
       <tr><td>unclassified</td><td>Unc</td><td>Could not be classified from the available fields.</td></tr>
     </tbody>

@@ -82,6 +82,9 @@ crash_map AS (
         ('motorcycle* - bicycle', 'MC-Bic'),
         ('standing scooter* - pedestrian', 'SS-Ped'),
         ('standing scooter* - bicycle', 'SS-Bic'),
+        ('standing scooter* - standing scooter*', 'SS*-SS*'),
+        ('motorcycle* - motorcycle*', 'MC*-MC*'),
+        ('motorcycle* - standing scooter*', 'MC*-SS*'),
         ('bicycle - pedestrian', 'Bic-Ped'),
         ('multi-party', 'MP'),
         ('unclassified', 'Unc')
