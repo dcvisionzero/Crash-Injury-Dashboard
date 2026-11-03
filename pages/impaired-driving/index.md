@@ -8,7 +8,8 @@ sidebar_link: false
 <!--
   Data prerequisites (register both in a `dui` source, like hexgrid.crash_hexgrid):
     dui.hex_static      <- dui_hex_static.parquet
-                           GRID_ID, ward, est_kde, est_kde_norm, n_estab_400m,
+                           GRID_ID, ward, district (e.g. '3D'), district_name (e.g.
+                           'Third District'), est_kde, est_kde_norm, n_estab_400m,
                            dui_arrests (2021-2025, validation only),
                            hx, hy (State Plane meters), hex_lat, hex_lon
     dui.establishments  <- establishments_weighted.parquet
@@ -143,7 +144,8 @@ impaired AS (
 factors AS (
     SELECT
         h.GRID_ID,
-        h.ward,
+        h.district,
+        h.district_name,
         COALESCE(h.n_estab_400m, 0) AS n_estab,
         COALESCE(h.dui_arrests, 0)  AS dui_arrests,   -- validation only, not in Priority
         COALESCE(c.crash_people, 0) AS crash_people,
@@ -172,8 +174,8 @@ ranked2 AS (
 )
 SELECT
     GRID_ID,
-    ward,
-    'Ward ' || ward AS ward_label,
+    district,          -- MPD police district code, e.g. '3D'
+    district_name,     -- e.g. 'Third District'
     priority,
     city_rank,
     dui_arrests,   -- validation only; never enters Priority
@@ -332,7 +334,7 @@ defaultValue={['Fatal', 'Major', 'Minor']}
             <Areas data={dui_hex} name=hex_select geoJsonUrl='https://raw.githubusercontent.com/rafaelmorenoco/Crash-Injury-Dashboard-Frontend/main/static/crash-hexgrid.geojson' geoId=GRID_ID areaCol=GRID_ID value=priority min=0 opacity=0.7
                 tooltip={[
                     {id: 'GRID_ID', valueClass: 'text-l font-semibold', showColumnName: false},
-                    {id: 'ward_label', showColumnName: false},
+                    {id: 'district_name', showColumnName: false},
                     {id: 'city_rank', title: 'Rank'},
                     {id: 'priority', title: 'Priority Score (0‑100)'},
                     {id: 'crash_pts', title: 'Injury Crashes (points)'},
@@ -367,7 +369,7 @@ defaultValue={['Fatal', 'Major', 'Minor']}
                 // Headers use non-breaking hyphens (U+2011) and non-breaking spaces (U+00A0)
                 // so a unit like (0-100) never splits or wraps onto its own line.
                 { id: 'city_rank',  title: 'Rank', fmt: 'num' },
-                { id: 'GRID_ID',    title: 'Hexagon', sub: 'ward_label' },
+                { id: 'GRID_ID',    title: 'Hexagon - PD', sub: 'district' },
                 { id: 'priority',   title: 'Priority Score (0‑100)', fmt: 'num', colorscale: true, colorMin: 0 },
                 { id: 'crash_pts',  title: 'Injury Crashes (points)', fmt: 'num' },
                 { id: 'n_estab',    title: 'Venues Nearby (count)', fmt: 'num' },
@@ -388,7 +390,7 @@ defaultValue={['Fatal', 'Major', 'Minor']}
 
         {#if selected_hex.length === 1}
         <div style="font-size: 14px; margin-top: 12px;">
-            <b>{selected_hex[0].GRID_ID} (Ward {selected_hex[0].ward}): Priority {selected_hex[0].priority}, rank {selected_hex[0].city_rank} citywide</b>
+            <b>{selected_hex[0].GRID_ID} ({selected_hex[0].district_name}): Priority {selected_hex[0].priority}, rank {selected_hex[0].city_rank} citywide</b>
             <span style="display:block; font-size: 12px; color: #6c757d;">
                 DUI arrests here, 2021-2025: {selected_hex[0].dui_arrests} (validation only; not part of Priority Score)
             </span>
@@ -460,7 +462,7 @@ Hexagons that score on **several factors rank highest**. A hexagon strong on onl
 - **Citywide:** high-priority hexagons should also show more DUI arrests than the rest. They do: the top 10% of hexagons average about three times as many arrests as all other scored hexagons. That agreement is evidence the score finds places where impaired driving actually happens.
 - **For one hexagon:** read Priority and arrests together. High Priority with many arrests means the data and current enforcement agree. High Priority with few or no arrests means people are getting hurt in conditions linked to impaired driving, but DUI enforcement has not focused there. Those hexagons deserve a closer look.
 
-*Why they are not part of Priority.* An arrest happens only where an officer is present and makes a stop, so arrest counts measure enforcement effort as much as impaired driving. From 2021 to 2025, DUI arrests per person hurt in an impaired-driver crash ranged from about 2.6 in Ward 7 to 5.9 in Ward 4. Including arrests in the score would rank highest the places MPD already patrols, which would bring more patrols there, which would produce more arrests: a loop that measures past enforcement and hides under-served areas. The arrest data also ends in 2025, so it cannot follow the date filter.
+*Why they are not part of Priority.* An arrest happens only where an officer is present and makes a stop, so arrest counts measure enforcement effort as much as impaired driving. From 2021 to 2025, DUI arrests per person hurt in an impaired-driver crash ranged from about 2.4 in the Sixth District to 5.2 in the Seventh District. The Sixth District had 20% of the city's impaired-driver injuries but 12% of its DUI arrests. Including arrests in the score would rank highest the places MPD already patrols, which would bring more patrols there, which would produce more arrests: a loop that measures past enforcement and hides under-served areas. The arrest data also ends in 2025, so it cannot follow the date filter.
 
 </Details>
 
