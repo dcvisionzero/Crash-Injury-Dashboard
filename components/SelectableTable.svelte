@@ -19,12 +19,15 @@
   export let name;
   export let valueCol;
   export let multiple = false;
-  export let columns = undefined;         // [{id,title?,fmt?,align?,downIsGood?}]
+  export let columns = undefined;         // [{id,title?,fmt?,align?,downIsGood?,colorscale?,sub?}]
+                                          // sub: id of a column shown as a small second line
+                                          //      under this cell (e.g. a ward under a hexagon)
   export let initialSort = undefined;     // {col,dir}
   export let rows = 10;                    // rows per page
   export let rowShading = false;
   export let collapseOnSelect = false;    // when a row is selected, show only it
   export let wrapTitles = false;          // allow header titles to wrap to multiple lines
+  export let itemLabel = 'intersections'; // noun used in the footer (count and "Show all")
 
   const inputs = getInputContext();
   const selected = writable([]);
@@ -100,11 +103,76 @@
     return Object.keys(r[0]).map((id) => ({ id, title: id }));
   }
   const isNumericFmt = (f) => f === 'num' || f === 'pct' || f === 'delta';
+
+  // ---- colorscale: shade cells by value, matching DataTable's contentType=colorscale ----
+  // Column options:
+  //   colorscale: true            -> DEFAULT_SCALE (mirror of theme.colorScales.default
+  //                                  in evidence.config.yaml; Evidence does not export
+  //                                  its theme store, so the colors live here)
+  //   colorscale: ['#hex', ...]   -> explicit stops (2 or more), low to high
+  //   colorMin / colorMax         -> fix the domain ends (e.g. colorMin: 0 to match a
+  //                                  map using min=0); otherwise the data min/max
+  // Interpolation is linear RGB, the same as chroma.scale() inside DataTable, and the
+  // text color uses DataTable's contrast rule. The domain spans ALL loaded rows, not
+  // just the current page, so a shade means the same thing on every page.
+  const DEFAULT_SCALE = ['#ADD8E6', '#00008B'];
+  const TEXT_DARK = '#09090b';   // theme base-content (light)
+  const TEXT_LIGHT = '#ffffff';  // theme base-100 (light)
+
+  const hexToRgb = (h) => {
+    const s = h.replace('#', '');
+    const f = s.length === 3 ? s.split('').map((x) => x + x).join('') : s;
+    return [0, 2, 4].map((i) => parseInt(f.slice(i, i + 2), 16));
+  };
+  const rgbToHex = (c) => '#' + c.map((v) => Math.round(v).toString(16).padStart(2, '0')).join('');
+  function interpolate(stops, t) {
+    const rgb = stops.map(hexToRgb);
+    const seg = Math.min(rgb.length - 2, Math.floor(t * (rgb.length - 1)));
+    const local = t * (rgb.length - 1) - seg;
+    return rgb[seg].map((v, i) => v + (rgb[seg + 1][i] - v) * local);
+  }
+  // WCAG relative luminance / contrast, as chroma.contrast computes them
+  function luminance(rgb) {
+    const [r, g, b] = rgb.map((v) => {
+      const s = v / 255;
+      return s <= 0.03928 ? s / 12.92 : Math.pow((s + 0.055) / 1.055, 2.4);
+    });
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+  }
+  function contrast(a, b) {
+    const [l1, l2] = [luminance(a), luminance(b)].sort((x, y) => y - x);
+    return (l1 + 0.05) / (l2 + 0.05);
+  }
+
+  function colorRanges(r, cols) {
+    const out = {};
+    for (const c of cols) {
+      if (!c.colorscale) continue;
+      const vals = r.map((x) => Number(x[c.id])).filter((v) => Number.isFinite(v));
+      if (!vals.length) { out[c.id] = null; continue; }
+      out[c.id] = {
+        min: c.colorMin ?? Math.min(...vals),
+        max: c.colorMax ?? Math.max(...vals),
+        stops: Array.isArray(c.colorscale) ? c.colorscale : DEFAULT_SCALE
+      };
+    }
+    return out;
+  }
+  function colorStyle(val, range) {
+    const n = Number(val);
+    if (!range || !Number.isFinite(n) || range.max === range.min) return '';
+    const t = Math.min(1, Math.max(0, (n - range.min) / (range.max - range.min)));
+    const bg = interpolate(range.stops, t);
+    const fg = contrast(bg, hexToRgb(TEXT_DARK)) < contrast(bg, hexToRgb(TEXT_LIGHT)) + 0.5
+      ? TEXT_LIGHT : TEXT_DARK;
+    return `background:${rgbToHex(bg)};color:${fg};`;
+  }
 </script>
 
 <QueryLoad {data} let:loaded>
   <!-- reactive: recompute whenever loaded, sortCol, sortDir, selection, or page change -->
   {@const cols = resolveColumns(loaded)}
+  {@const ranges = colorRanges(loaded, cols)}
   {@const base = (collapseOnSelect && $selected.length > 0)
       ? loaded.filter((r) => $selected.includes(r[valueCol]))
       : loaded}
@@ -143,9 +211,13 @@
             {#each cols as c}
               <td
                 class="py-1 pr-3 align-top {c.fmt === 'delta' ? deltaClass(row[c.id], c.downIsGood) : ''}"
-                style={isNumericFmt(c.fmt) || c.align === 'right' ? 'text-align:right' : ''}
+                style={(isNumericFmt(c.fmt) || c.align === 'right' ? 'text-align:right;' : '')
+                  + (c.colorscale ? colorStyle(row[c.id], ranges[c.id]) : '')}
               >
                 {fmtCell(row[c.id], c.fmt)}
+                {#if c.sub && row[c.sub] != null && row[c.sub] !== ''}
+                  <span class="sub-line">{row[c.sub]}</span>
+                {/if}
               </td>
             {/each}
           </tr>
@@ -156,9 +228,9 @@
     <div class="flex items-center justify-between pt-2 text-base-content-muted footer">
       <span>
         {#if $selected.length > 0}
-          <button class="link-btn" on:click={() => selected.set([])}>Show all intersections</button>
+          <button class="link-btn" on:click={() => selected.set([])}>Show all {itemLabel}</button>
         {:else}
-          {total.toLocaleString('en-US')} intersections
+          {total.toLocaleString('en-US')} {itemLabel}
         {/if}
       </span>
       {#if pageCount > 1 && !(collapseOnSelect && $selected.length > 0)}
@@ -197,6 +269,8 @@
   .selectable-table :global(td.delta-zero) { color: var(--base-content, #1f2937); }
   .selectable-table :global(tr.is-selected td.delta-good),
   .selectable-table :global(tr.is-selected td.delta-bad) { color: #fff; }
+  /* second line under a cell (column option `sub`); opacity keeps it readable on the selected row */
+  .selectable-table :global(.sub-line) { display: block; font-size: 8.5pt; opacity: 0.7; line-height: 1.2; }
 
   /* Evidence shows its chevron only on the sorted column (Tabler ChevronUp/Down, 10px). */
   .selectable-table :global(.sort-chev) {
