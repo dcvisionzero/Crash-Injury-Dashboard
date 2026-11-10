@@ -2263,12 +2263,12 @@ defaultValue={
       <tr>
         <td><img src="https://raw.githubusercontent.com/rafaelmorenoco/Crash-Injury-Dashboard-Backend/main/Icons/scooterist.png" alt="Scooterist Icon" width="32"></td>
         <td>Scooterist*</td>
-        <td>A person riding a standing scooter, e-scooter, or personal mobility device. *Fatal only.</td>
+        <td>A person riding a standing scooter, e-scooter, Electric Mobility Device (EMD), Personal Mobility Device (PMD). *Fatal only.</td>
       </tr>
       <tr>
         <td><img src="https://raw.githubusercontent.com/rafaelmorenoco/Crash-Injury-Dashboard-Backend/main/Icons/unknown.png" alt="Other Icon" width="32"></td>
         <td>Other**</td>
-        <td>Includes users of autocycles, motorcycles, motor-driven cycles, standing scooters, e-scooters, personal mobility devices, occupants of non-moving vehicles, witnesses, and people with other or unknown classifications. **Major and minor injury only.</td>
+        <td>Includes users of standing scooter, e-scooter, Electric Mobility Device (EMD), Personal Mobility Device (PMD), occupants of non-moving vehicles, and individuals with other or unknown classifications. Applies to major and minor injuries only.</td>
       </tr>
     </tbody>
   </table>
