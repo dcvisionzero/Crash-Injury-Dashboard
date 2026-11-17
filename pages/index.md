@@ -2288,14 +2288,40 @@ All counts on this page are for persons injured, NOT the number of crashes. For 
 Injury Crashes are defined based on information collected at the scene of the crash. See below for examples of the different types of injury categories. 
 
 ### Injury Category:
-        - Major Injury:	Unconsciousness; Apparent Broken Bones; Concussion; Gunshot (non-fatal); Severe Laceration; Other Major Injury. 
-        - Minor Injury:	Abrasions; Minor Cuts; Discomfort; Bleeding; Swelling; Pain; Apparent Minor Injury; Burns-minor; Smoke Inhalation; Bruises
 
-While the injury crashes shown on this map include any type of injury, summaries of injuries submitted for federal reports only include those that fall under the Model Minimum Uniform Crash Criteria https://www.nhtsa.gov/mmucc-1, which do not include "discomfort" and "pain". Note: Data definitions of injury categories may differ due to source (e.g., federal rules) and may change over time, which may cause numbers to vary among data sources. 
+Injury categories follow the KABCO scale as defined in the [Model Minimum Uniform Crash Criteria (MMUCC) 6th Edition](https://crashstats.nhtsa.dot.gov/Api/Public/ViewPublication/813525). Data definitions of injury categories may change over time, which may cause numbers to vary among data sources. 
 
-Injury data (minor and major injuries) comes from MPD only. This means that crashes occurring outside MPD’s jurisdiction are assigned to the other law enforcement agencies that operate in DC, such as the United States Park Police (USPP), United States Capitol Police (USCP), United States Secret Service (USSS), and the Metro Transit Police Department (MTPD), among others. As a result, those crashes do not appear in MPD’s database or in this dashboard. Fatality data is the exception because it includes cases handled by other law enforcement agencies in the District. For example, in a non fatal crash in Rock Creek Park, USPP would be the responding agency rather than MPD.
+- **Major Injury (A)**
+  - **Suspected Serious Injury (A):** any injury other than fatal that results in one or more of the following:
+    - Severe laceration resulting in exposure of underlying tissues, muscle, or organs, or resulting in significant loss of blood
+    - Broken or distorted extremity (arm or leg)
+    - Crush injuries
+    - Suspected skull, chest, or abdominal injury other than bruises or minor lacerations
+    - Significant burns (second- and third-degree burns over 10 percent or more of the body)
+    - Unconsciousness when taken from the crash scene
+    - Paralysis
+- **Minor Injury (B and C)**
+  - **Suspected Minor Injury (B):** any injury evident at the scene of the crash, other than fatal or serious injuries. Examples include a lump on the head, abrasions, bruises, and minor lacerations (cuts on the skin surface with minimal bleeding and no exposure of deeper tissue or muscle).
+  - **Possible Injury (C):** any injury reported or claimed that is not a fatal, suspected serious, or suspected minor injury. Examples include momentary loss of consciousness, claim of injury, limping, or complaint of pain or nausea. The person reports these injuries or their behavior indicates them, but no wounds or injuries are readily evident.
 
-    - Crashes in DC (Open Data): https://opendata.dc.gov/datasets/crashes-in-dc
-    - Crash Details (Open Data): https://opendata.dc.gov/datasets/crash-details-table
+### Data Sources and Coverage
+
+Injury data (minor and major injuries) come from MPD only. Other law enforcement agencies operating in the District investigate crashes outside MPD's jurisdiction. These include the United States Park Police (USPP), United States Capitol Police (USCP), United States Secret Service (USSS), and Metro Transit Police Department (MTPD), among others. Those crashes do not appear in MPD's database or in this dashboard. For example, USPP, not MPD, typically responds to a non-fatal crash in Rock Creek Park. **Fatality data are the exception (see [Fatalities](#fatalities))**.
+
+Injury data are also available on DC Open Data:
+
+- [Crashes in DC](https://opendata.dc.gov/datasets/crashes-in-dc)
+- [Crash Details](https://opendata.dc.gov/datasets/crash-details-table)
+
+Note: MPD used different injury classification criteria before adopting the KABCO scale in 2021. Injury data from 2017 onward were revised to match KABCO categories, so injury counts are comparable across all years shown in this dashboard.
+
+### Fatalities
+
+DDOT's Vision Zero Office manually logs fatalities into a dedicated dataset that feeds this dashboard. Each entry is based on a fatality memo from MPD's Major Crash Investigations Unit (MCIU), so the dashboard matches MPD's reported fatality counts. These memos cover all traffic fatalities within the District, regardless of which law enforcement agency handled the case. When another agency responds to a fatal crash, it notifies MCIU, which assists at the scene when possible or reviews the case after the fact. MCIU then writes a fatality memo based on that agency's findings.
+
+These counts differ from the Fatal Injury (K) definition in NHTSA's MMUCC 6th Edition and from NHTSA's Fatality Analysis Reporting System (FARS) in two ways:
+
+1. The District counts deaths that occur after NHTSA's 30-day threshold.
+2. The District counts fatalities that do not involve a motor vehicle such as a car, truck, SUV, van, bus, semi-truck, motorcycle, among others. For example, if a collision between two bicyclists results in a death, the District counts it as a traffic fatality, but FARS does not.
 
 </Details>

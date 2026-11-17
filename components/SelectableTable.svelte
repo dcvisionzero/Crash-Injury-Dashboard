@@ -182,6 +182,8 @@
   {@const safePage = Math.min(page, pageCount - 1)}
   {@const pageRows = sorted.slice(safePage * rowsNum, safePage * rowsNum + rowsNum)}
   <div class="selectable-table text-xs">
+    <!-- scrolls sideways when the columns are wider than the screen (phones) -->
+    <div class="table-scroll">
     <table class="w-full border-collapse">
       <thead>
         <tr>
@@ -224,6 +226,7 @@
         {/each}
       </tbody>
     </table>
+    </div>
 
     <div class="flex items-center justify-between pt-2 text-base-content-muted footer">
       <span>
@@ -245,6 +248,15 @@
 </QueryLoad>
 
 <style>
+  /* Wide tables scroll inside their own box instead of being cut off by the
+     page (the page hides horizontal overflow). min-width: 0 lets the box
+     shrink to the screen inside a grid or flex parent. */
+  .selectable-table { min-width: 0; max-width: 100%; }
+  .selectable-table :global(.table-scroll) {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
   /* Match Evidence's DataTable: 9.5pt, ui font, tabular numerals. */
   .selectable-table :global(table) {
     font-size: 9.5pt;
