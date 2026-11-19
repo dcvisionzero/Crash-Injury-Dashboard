@@ -61,17 +61,21 @@
 
   const rowsNum = typeof rows === 'string' ? parseInt(rows) : rows;
 
+  // Sorts a copy. Ties keep the order the query returned (Array.sort is
+  // stable), in both directions, and empty values always go last. Descending
+  // flips the comparison rather than reversing the result, since reversing
+  // would also flip the order of tied rows.
   function sortRows(r, col, dir) {
     if (!col) return r;
-    const out = [...r].sort((a, b) => {
+    const sign = dir === 'desc' ? -1 : 1;
+    return [...r].sort((a, b) => {
       const x = a[col], y = b[col];
       if (x == null && y == null) return 0;
       if (x == null) return 1;
       if (y == null) return -1;
-      if (typeof x === 'number' && typeof y === 'number') return x - y;
-      return String(x).localeCompare(String(y), undefined, { numeric: true });
+      if (typeof x === 'number' && typeof y === 'number') return sign * (x - y);
+      return sign * String(x).localeCompare(String(y), undefined, { numeric: true });
     });
-    return dir === 'desc' ? out.reverse() : out;
   }
 
   function fmtCell(val, fmt) {

@@ -478,7 +478,7 @@ defaultValue={['Fatal', 'Major', 'Minor']}
                 { id: 'imp_pts',       title: 'Impaired‑Driver Crashes (points)', fmt: 'num' },
                 { id: 'dui_arrests',   title: "DUI Arrests* ('21‑'25)", fmt: 'num' }
             ]}
-            initialSort={{ col: 'priority', dir: 'desc' }}
+            initialSort={{ col: 'city_rank', dir: 'asc' }}
         />
         <Note>
             Rank and Priority Score are citywide; the Locations, District, and PSA filters narrow the list without rescaling it.<br/>
